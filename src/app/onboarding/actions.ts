@@ -16,15 +16,30 @@ export async function getOnboardingNeed() {
   const service = getServiceSupabase();
   const { data: profile } = await service
     .from("profiles")
-    .select("id")
+    .select("id, organization_id")
     .eq("user_id", data.user.id)
     .maybeSingle();
+
+  // Defensive: a profile pointing at a deleted organization is normally
+  // impossible thanks to ON DELETE CASCADE, but it can happen via partial
+  // seeds or admin scripts. If we returned `needsOnboarding=false` here,
+  // the page would redirect to /dashboard, where requireSession would see
+  // a missing org and bounce back to /onboarding — an infinite loop.
+  let hasUsableOrganization = false;
+  if (profile) {
+    const { data: org } = await service
+      .from("organizations")
+      .select("id")
+      .eq("id", profile.organization_id)
+      .maybeSingle();
+    hasUsableOrganization = Boolean(org);
+  }
 
   const meta = (data.user.user_metadata ?? {}) as { full_name?: string; firm_name?: string };
 
   return {
     userId: data.user.id,
-    needsOnboarding: !profile,
+    needsOnboarding: !profile || !hasUsableOrganization,
     suggestedName: meta.full_name ?? "",
     suggestedFirmName: meta.firm_name ?? "",
   };

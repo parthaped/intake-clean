@@ -17,7 +17,7 @@ export function getServiceSupabase() {
 
   if (!env.supabaseUrl || !env.supabaseServiceRoleKey) {
     throw new Error(
-      "Supabase secret key is required for server-side operations. Set SUPABASE_SECRET_KEY (preferred) or SUPABASE_SERVICE_ROLE_KEY in .env.local.",
+      "Supabase secret key is required for server-side operations. Set SUPABASE_SECRET_KEY (preferred) or SUPABASE_SERVICE_ROLE_KEY in .env.local — or accept the Vercel Marketplace STORAGE_SUPABASE_SECRET_KEY / STORAGE_SUPABASE_SERVICE_ROLE_KEY equivalents.",
     );
   }
 

@@ -20,7 +20,18 @@ export interface ExportContext {
   };
   client: { full_name: string; email: string | null; phone: string | null };
   acceptedFiles: AcceptedFileRow[];
+  rejectedFiles: RejectedFileRow[];
   requests: RequestSummary[];
+}
+
+export interface RejectedFileRow {
+  id: string;
+  original_file_name: string;
+  detected_document_type: string | null;
+  status: UploadedFileStatus;
+  /** Human-readable reason (from quality_checks.issue_summary or reviewer_notes). */
+  reason: string | null;
+  created_at: string;
 }
 
 export interface AcceptedFileRow {
@@ -86,6 +97,36 @@ export async function loadExportContext(matterId: string, organizationId: string
     .order("created_at", { ascending: true });
   const acceptedFiles = (filesRes.data ?? []) as AcceptedFileRow[];
 
+  type RejectedRow = {
+    id: string;
+    original_file_name: string;
+    detected_document_type: string | null;
+    status: UploadedFileStatus;
+    created_at: string;
+    quality_checks: Array<{ issue_summary: string | null }> | null;
+    review_tasks: Array<{ reviewer_notes: string | null }> | null;
+  };
+  const rejectedRes = await service
+    .from("uploaded_files")
+    .select(
+      "id, original_file_name, detected_document_type, status, created_at, quality_checks(issue_summary), review_tasks(reviewer_notes)",
+    )
+    .eq("matter_id", matter.id)
+    .in("status", ["needs_reupload", "rejected"])
+    .order("created_at", { ascending: false });
+  const rejectedRaw = (rejectedRes.data ?? []) as unknown as RejectedRow[];
+  const rejectedFiles: RejectedFileRow[] = rejectedRaw.map((row) => ({
+    id: row.id,
+    original_file_name: row.original_file_name,
+    detected_document_type: row.detected_document_type,
+    status: row.status,
+    reason:
+      row.review_tasks?.[0]?.reviewer_notes ??
+      row.quality_checks?.[0]?.issue_summary ??
+      null,
+    created_at: row.created_at,
+  }));
+
   type RequestRow = {
     id: string;
     title: string;
@@ -135,6 +176,7 @@ export async function loadExportContext(matterId: string, organizationId: string
     },
     client: matter.clients,
     acceptedFiles,
+    rejectedFiles,
     requests,
   };
 }

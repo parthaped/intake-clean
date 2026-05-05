@@ -16,8 +16,7 @@ export interface ImageMetricsResult {
 
 /**
  * Normalises an image for storage and downstream OCR. Auto-rotates by EXIF,
- * downscales massive photos, and computes simple quality heuristics that the
- * mock processor can use when Document AI isn't configured.
+ * downscales massive photos, and computes simple quality heuristics.
  */
 export async function normaliseImage(buffer: Buffer, _mime: string): Promise<ImageMetricsResult> {
   const pipeline = sharp(buffer, { failOn: "error" }).rotate();
@@ -37,7 +36,6 @@ export async function normaliseImage(buffer: Buffer, _mime: string): Promise<Ima
   const height = meta.height ?? 0;
   const aspectRatio = width && height ? width / height : 1;
 
-  // Common phone screenshot aspect ratios: 9:16 (iPhone), 9:19.5 (newer iPhones), 9:18, 9:20.
   const likelyScreenshot =
     width > 0 &&
     height > 0 &&

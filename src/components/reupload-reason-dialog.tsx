@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -15,18 +15,79 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { REUPLOAD_REASONS } from "@/lib/constants";
+
+interface ReuploadPreset {
+  id: string;
+  label: string;
+  text: string;
+}
 
 interface ReuploadReasonDialogProps {
   fileId: string;
+  presets: ReuploadPreset[];
+  defaultReason?: string;
+  defaultPresetId?: string;
+  canRewriteWithHF: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onComplete?: () => void;
 }
 
-export function ReuploadReasonDialog({ fileId, open, onOpenChange, onComplete }: ReuploadReasonDialogProps) {
-  const [reason, setReason] = useState<string>(REUPLOAD_REASONS[0]);
+/**
+ * Dialog for staff to send a re-upload request. Presets come from the local
+ * rules engine; the staff can edit them, optionally ask HF to rewrite, and
+ * always have the final word before sending.
+ */
+export function ReuploadReasonDialog({
+  fileId,
+  presets,
+  defaultReason,
+  defaultPresetId,
+  canRewriteWithHF,
+  open,
+  onOpenChange,
+  onComplete,
+}: ReuploadReasonDialogProps) {
+  const initial = useMemo(
+    () => defaultReason ?? presets.find((p) => p.id === defaultPresetId)?.text ?? presets[0]?.text ?? "",
+    [defaultReason, defaultPresetId, presets],
+  );
+  const [reason, setReason] = useState<string>(initial);
+  const [activePresetId, setActivePresetId] = useState<string | undefined>(defaultPresetId);
   const [pending, startTransition] = useTransition();
+  const [rewriting, startRewrite] = useTransition();
+
+  useEffect(() => {
+    if (open) {
+      setReason(initial);
+      setActivePresetId(defaultPresetId);
+    }
+  }, [open, initial, defaultPresetId]);
+
+  function pickPreset(preset: ReuploadPreset) {
+    setActivePresetId(preset.id);
+    setReason(preset.text);
+  }
+
+  function rewriteWithHF() {
+    startRewrite(async () => {
+      const res = await fetch(`/api/files/${fileId}/rewrite-reason`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ template: activePresetId, reason }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        toast.error(text || "Could not rewrite with AI");
+        return;
+      }
+      const data = (await res.json()) as { text?: string };
+      if (data.text) {
+        setReason(data.text);
+        toast.success("Rewritten with AI. Please review before sending.");
+      }
+    });
+  }
 
   function submit() {
     if (reason.trim().length < 5) {
@@ -56,22 +117,25 @@ export function ReuploadReasonDialog({ fileId, open, onOpenChange, onComplete }:
         <DialogHeader>
           <DialogTitle>Request a re-upload</DialogTitle>
           <DialogDescription>
-            Pick a preset or write your own reason. The client will see this in plain English.
+            Pick a preset or write your own reason. The client will see this in plain English. AI checks are
+            assistive only — please review every word before sending.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="flex flex-wrap gap-2">
-            {REUPLOAD_REASONS.map((preset) => (
+            {presets.map((preset) => (
               <button
-                key={preset}
+                key={preset.id}
                 type="button"
-                onClick={() => setReason(preset)}
+                onClick={() => pickPreset(preset)}
                 className={`rounded-full border px-3 py-1.5 text-xs transition ${
-                  preset === reason ? "border-accent bg-accent/10 text-accent" : "border-border text-muted-foreground hover:border-foreground"
+                  preset.id === activePresetId
+                    ? "border-accent bg-accent/10 text-accent"
+                    : "border-border text-muted-foreground hover:border-foreground"
                 }`}
               >
-                {preset}
+                {preset.label}
               </button>
             ))}
           </div>
@@ -79,6 +143,12 @@ export function ReuploadReasonDialog({ fileId, open, onOpenChange, onComplete }:
             <Label htmlFor="reason">Message to client</Label>
             <Textarea id="reason" value={reason} onChange={(e) => setReason(e.target.value)} className="min-h-[110px]" />
           </div>
+          {canRewriteWithHF && (
+            <Button type="button" variant="ghost" size="sm" onClick={rewriteWithHF} disabled={rewriting}>
+              {rewriting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+              Rewrite with AI
+            </Button>
+          )}
         </div>
 
         <DialogFooter>

@@ -120,6 +120,9 @@ export function ClientUploadPortal({ token, items, focusItemId }: ClientUploadPo
 
   return (
     <div className="mt-6 space-y-4">
+      <div className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
+        AI checks are assistive only. Firm staff must review every document before use.
+      </div>
       {visibleItems.map((item) => (
         <ItemCard
           key={item.id}

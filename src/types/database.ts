@@ -57,6 +57,19 @@ export type JobType = "convert" | "ocr_quality" | "classify" | "export";
 export type JobStatus = "queued" | "running" | "completed" | "failed";
 export type ActorType = "staff" | "client" | "system";
 
+export type AIProviderName =
+  | "mock"
+  | "local_ocr_only"
+  | "huggingface_provider"
+  | "huggingface_endpoint";
+export type ClassificationSource =
+  | "rules"
+  | "ocr"
+  | "huggingface"
+  | "manual"
+  | "fallback";
+export type OcrEngineName = "tesseract" | "paddleocr" | "mock" | "none";
+
 type OrganizationsRow = {
   id: string;
   name: string;
@@ -66,7 +79,11 @@ type OrganizationsRow = {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   subscription_status: SubscriptionStatusT;
+  cancel_at_period_end: boolean;
+  current_period_end: string | null;
   storage_limit_mb: number;
+  ai_provider: AIProviderName;
+  ai_settings: Json;
   created_at: string;
   updated_at: string;
 }
@@ -79,7 +96,11 @@ type OrganizationsInsert = {
   stripe_customer_id?: string | null;
   stripe_subscription_id?: string | null;
   subscription_status?: SubscriptionStatusT;
+  cancel_at_period_end?: boolean;
+  current_period_end?: string | null;
   storage_limit_mb?: number;
+  ai_provider?: AIProviderName;
+  ai_settings?: Json;
   created_at?: string;
   updated_at?: string;
 }
@@ -243,6 +264,14 @@ type DocumentRequestItemsInsert = {
   sort_order?: number;
 }
 
+export type VirusScanStatus =
+  | "pending"
+  | "clean"
+  | "infected"
+  | "unknown"
+  | "skipped"
+  | "error";
+
 type UploadedFilesRow = {
   id: string;
   organization_id: string;
@@ -261,6 +290,16 @@ type UploadedFilesRow = {
   status: UploadedFileStatus;
   uploaded_by_type: UploaderType;
   packet_order: number | null;
+  processing_provider: string | null;
+  ocr_text: string | null;
+  ocr_confidence: number | null;
+  classification_confidence: number | null;
+  classification_source: ClassificationSource | null;
+  ai_cost_estimate_cents: number;
+  virus_scan_status: VirusScanStatus;
+  virus_scan_engine: string | null;
+  virus_scan_findings: Json | null;
+  virus_scanned_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -282,6 +321,16 @@ type UploadedFilesInsert = {
   detected_document_type?: string | null;
   status?: UploadedFileStatus;
   packet_order?: number | null;
+  processing_provider?: string | null;
+  ocr_text?: string | null;
+  ocr_confidence?: number | null;
+  classification_confidence?: number | null;
+  classification_source?: ClassificationSource | null;
+  ai_cost_estimate_cents?: number;
+  virus_scan_status?: VirusScanStatus;
+  virus_scan_engine?: string | null;
+  virus_scan_findings?: Json | null;
+  virus_scanned_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -300,6 +349,11 @@ type QualityChecksRow = {
   issue_summary: string | null;
   recommendation: RecommendationT;
   raw_ai_json: Json;
+  local_flags: Json;
+  ocr_engine: OcrEngineName | null;
+  hf_model_used: string | null;
+  hf_latency_ms: number | null;
+  raw_ocr_json: Json | null;
   created_at: string;
 }
 type QualityChecksInsert = {
@@ -316,6 +370,11 @@ type QualityChecksInsert = {
   issue_summary?: string | null;
   recommendation?: RecommendationT;
   raw_ai_json?: Json;
+  local_flags?: Json;
+  ocr_engine?: OcrEngineName | null;
+  hf_model_used?: string | null;
+  hf_latency_ms?: number | null;
+  raw_ocr_json?: Json | null;
   created_at?: string;
 }
 
@@ -400,6 +459,11 @@ type ProcessingJobsRow = {
   status: JobStatus;
   error_message: string | null;
   attempts: number;
+  max_attempts: number;
+  provider: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  latency_ms: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -411,8 +475,45 @@ type ProcessingJobsInsert = {
   status?: JobStatus;
   error_message?: string | null;
   attempts?: number;
+  max_attempts?: number;
+  provider?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  latency_ms?: number | null;
   created_at?: string;
   updated_at?: string;
+}
+
+type StripeProcessedEventsRow = {
+  event_id: string;
+  event_type: string;
+  processed_at: string;
+}
+type StripeProcessedEventsInsert = {
+  event_id: string;
+  event_type: string;
+  processed_at?: string;
+}
+
+type SubscriptionCancellationFeedbackRow = {
+  id: string;
+  organization_id: string;
+  profile_id: string | null;
+  stripe_subscription_id: string | null;
+  plan: PlanTier | null;
+  reasons: string[];
+  comment: string | null;
+  created_at: string;
+}
+type SubscriptionCancellationFeedbackInsert = {
+  organization_id: string;
+  id?: string;
+  profile_id?: string | null;
+  stripe_subscription_id?: string | null;
+  plan?: PlanTier | null;
+  reasons?: string[];
+  comment?: string | null;
+  created_at?: string;
 }
 
 type AuditLogsRow = {
@@ -455,6 +556,8 @@ export interface Database {
       client_messages: { Row: ClientMessagesRow; Insert: ClientMessagesInsert; Update: Partial<ClientMessagesRow>; Relationships: [] };
       exports: { Row: ExportsRow; Insert: ExportsInsert; Update: Partial<ExportsRow>; Relationships: [] };
       processing_jobs: { Row: ProcessingJobsRow; Insert: ProcessingJobsInsert; Update: Partial<ProcessingJobsRow>; Relationships: [] };
+      stripe_processed_events: { Row: StripeProcessedEventsRow; Insert: StripeProcessedEventsInsert; Update: Partial<StripeProcessedEventsRow>; Relationships: [] };
+      subscription_cancellation_feedback: { Row: SubscriptionCancellationFeedbackRow; Insert: SubscriptionCancellationFeedbackInsert; Update: Partial<SubscriptionCancellationFeedbackRow>; Relationships: [] };
       audit_logs: { Row: AuditLogsRow; Insert: AuditLogsInsert; Update: Partial<AuditLogsRow>; Relationships: [] };
     };
     Views: { [key: string]: never };

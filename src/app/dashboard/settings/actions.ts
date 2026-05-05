@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { recordAudit } from "@/lib/audit";
-import { requireRole, requireSession } from "@/lib/auth";
+import { requireRole, requireSession, requireStepUpReauth } from "@/lib/auth";
 import { getServiceSupabase } from "@/lib/supabase/service";
-import type { ProfileRole } from "@/types/database";
+import type { AIProviderName, OcrEngineName, ProfileRole } from "@/types/database";
 
 const orgSchema = z.object({
   name: z.string().min(2),
@@ -66,7 +66,13 @@ const roleSchema = z.object({
 });
 
 export async function updateUserRoleAction(formData: FormData) {
-  const ctx = await requireRole(["admin"]);
+  // Role changes can hand `admin` to anyone in the org — gate behind a
+  // fresh MFA assertion so a stolen session cookie can't quietly promote
+  // the attacker's account.
+  const ctx = await requireStepUpReauth();
+  if (ctx.profile.role !== "admin") {
+    throw new Error("Only firm admins can change roles");
+  }
   const service = getServiceSupabase();
   const parsed = roleSchema.safeParse({
     profile_id: formData.get("profile_id"),
@@ -88,6 +94,53 @@ export async function updateUserRoleAction(formData: FormData) {
     entityType: "profile",
     entityId: parsed.data.profile_id,
     metadata: { role: parsed.data.role },
+  });
+  revalidatePath("/dashboard/settings");
+}
+
+const aiSettingsSchema = z.object({
+  ai_provider: z.enum(["mock", "local_ocr_only", "huggingface_provider", "huggingface_endpoint"]),
+  ocr_engine: z.enum(["tesseract", "paddleocr", "mock", "none"]),
+  use_hf_classification: z.boolean(),
+  use_hf_explanations: z.boolean(),
+});
+
+export async function updateAISettingsAction(formData: FormData) {
+  const ctx = await requireRole(["admin"]);
+  const parsed = aiSettingsSchema.safeParse({
+    ai_provider: formData.get("ai_provider") as AIProviderName,
+    ocr_engine: formData.get("ocr_engine") as OcrEngineName,
+    use_hf_classification: formData.get("use_hf_classification") === "on",
+    use_hf_explanations: formData.get("use_hf_explanations") === "on",
+  });
+  if (!parsed.success) throw new Error(parsed.error.errors[0]?.message ?? "Invalid input");
+
+  const service = getServiceSupabase();
+  const { error } = await service
+    .from("organizations")
+    .update({
+      ai_provider: parsed.data.ai_provider,
+      ai_settings: {
+        ocr_engine: parsed.data.ocr_engine,
+        use_hf_classification: parsed.data.use_hf_classification,
+        use_hf_explanations: parsed.data.use_hf_explanations,
+      },
+    })
+    .eq("id", ctx.organization.id);
+  if (error) throw new Error(error.message);
+
+  await recordAudit({
+    organizationId: ctx.organization.id,
+    actorProfileId: ctx.profile.id,
+    action: "organization.ai_settings_updated",
+    entityType: "organization",
+    entityId: ctx.organization.id,
+    metadata: {
+      ai_provider: parsed.data.ai_provider,
+      ocr_engine: parsed.data.ocr_engine,
+      use_hf_classification: parsed.data.use_hf_classification,
+      use_hf_explanations: parsed.data.use_hf_explanations,
+    },
   });
   revalidatePath("/dashboard/settings");
 }

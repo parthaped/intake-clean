@@ -35,10 +35,17 @@ export function SignupForm() {
     setPending(true);
     try {
       const supabase = getBrowserSupabase();
+      // Send the confirmation email back to our callback route on whichever
+      // origin the user signed up from. This avoids the "redirected to
+      // localhost:3000" problem when the Supabase project's Site URL points
+      // somewhere else, and ensures the PKCE `code` lands on a route that
+      // actually exchanges it for a session.
+      const emailRedirectTo = `${window.location.origin}/auth/callback?next=/dashboard`;
       const { data, error } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
         options: {
+          emailRedirectTo,
           data: { full_name: values.fullName, firm_name: values.firmName },
         },
       });
@@ -48,10 +55,12 @@ export function SignupForm() {
         return;
       }
 
-      // Some Supabase configurations require email confirmation. If session is
-      // null, the user still needs to verify before continuing.
+      // Email-confirmation projects return a user with no session. The
+      // workspace is created lazily after the user clicks the email link
+      // and lands on /onboarding (which the dashboard layout redirects to
+      // when no profile yet exists for the authenticated user).
       if (!data.session) {
-        toast.success("Check your email to confirm your account, then sign in.");
+        toast.success("Check your email to confirm your account.");
         router.replace("/login");
         return;
       }
@@ -69,8 +78,10 @@ export function SignupForm() {
       }
 
       toast.success("Workspace created");
-      router.replace("/dashboard");
-      router.refresh();
+      // Hard navigation so the just-set Supabase auth cookies are sent on the
+      // next request and the protected /dashboard route renders against the
+      // fresh session instead of bouncing through middleware.
+      window.location.assign("/dashboard");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sign up failed");
       setPending(false);

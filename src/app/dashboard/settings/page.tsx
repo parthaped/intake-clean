@@ -1,14 +1,18 @@
-import { Building2, ShieldCheck, Users } from "lucide-react";
+import { Building2, ShieldCheck, Sparkles, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { requireSession } from "@/lib/auth";
+import { AI_PROVIDER_LABEL, OCR_ENGINE_LABEL } from "@/lib/constants";
+import { env, integrations } from "@/lib/env";
+import { requireSessionWithMfa } from "@/lib/auth";
 import { getServiceSupabase } from "@/lib/supabase/service";
+import type { AIProviderName, Json, OcrEngineName } from "@/types/database";
 
 import {
+  updateAISettingsAction,
   updateOrganizationAction,
   updateProfileAction,
   updateUserRoleAction,
@@ -22,7 +26,7 @@ interface ProfileRow {
 }
 
 export default async function SettingsPage() {
-  const ctx = await requireSession();
+  const ctx = await requireSessionWithMfa();
   const service = getServiceSupabase();
   const { data } = await service
     .from("profiles")
@@ -32,12 +36,14 @@ export default async function SettingsPage() {
   const team = (data ?? []) as ProfileRow[];
 
   const isAdmin = ctx.profile.role === "admin";
+  const aiProvider = (ctx.organization.ai_provider ?? env.aiProvider) as AIProviderName;
+  const aiSettings = readAISettings(ctx.organization.ai_settings as Json | null);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Firm profile, team, and notification preferences.</p>
+        <p className="text-muted-foreground">Firm profile, team, AI processing, and notification preferences.</p>
       </div>
 
       <Card>
@@ -102,6 +108,110 @@ export default async function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-primary" /> Document AI Settings
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form action={updateAISettingsAction} className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="ai_provider">AI provider</Label>
+              <select
+                id="ai_provider"
+                name="ai_provider"
+                defaultValue={aiProvider}
+                disabled={!isAdmin}
+                className="h-10 w-full rounded-xl border border-input bg-card px-3 text-sm"
+              >
+                {(Object.keys(AI_PROVIDER_LABEL) as AIProviderName[]).map((key) => (
+                  <option key={key} value={key}>
+                    {AI_PROVIDER_LABEL[key]}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Mock and Local OCR never send documents off-device. Hugging Face options send the OCR text only,
+                and only when the toggles below are on.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="ocr_engine">OCR engine</Label>
+              <select
+                id="ocr_engine"
+                name="ocr_engine"
+                defaultValue={aiSettings.ocr_engine}
+                disabled={!isAdmin}
+                className="h-10 w-full rounded-xl border border-input bg-card px-3 text-sm"
+              >
+                {(Object.keys(OCR_ENGINE_LABEL) as OcrEngineName[]).map((key) => (
+                  <option key={key} value={key}>
+                    {OCR_ENGINE_LABEL[key]}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Tesseract runs in this server process — no external service. PaddleOCR is reserved for a future
+                self-hosted microservice.
+              </p>
+            </div>
+            <label className="flex items-start gap-3 rounded-xl border border-border bg-card/40 p-3 md:col-span-1">
+              <input
+                type="checkbox"
+                name="use_hf_classification"
+                defaultChecked={aiSettings.use_hf_classification}
+                disabled={!isAdmin}
+                className="mt-0.5"
+              />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium">Use Hugging Face for uncertain document classification</span>
+                <span className="block text-xs text-muted-foreground">
+                  Only called when local rules can&rsquo;t classify confidently.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-3 rounded-xl border border-border bg-card/40 p-3 md:col-span-1">
+              <input
+                type="checkbox"
+                name="use_hf_explanations"
+                defaultChecked={aiSettings.use_hf_explanations}
+                disabled={!isAdmin}
+                className="mt-0.5"
+              />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium">Use Hugging Face to rewrite client re-upload reasons</span>
+                <span className="block text-xs text-muted-foreground">
+                  Templates are sent server-side; clients never see anything until staff approves.
+                </span>
+              </span>
+            </label>
+
+            <div className="md:col-span-2 rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
+              For sensitive documents, use local OCR or a private endpoint. Do not send client files to third-party
+              inference services unless your firm has approved it.
+            </div>
+
+            <div className="md:col-span-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Badge variant="outline">HF token: {integrations.hasHuggingFace ? "configured" : "missing"}</Badge>
+              <Badge variant="outline">Endpoint URL: {integrations.hasHfEndpoint ? "configured" : "missing"}</Badge>
+              <Badge variant="outline">Mock mode: {integrations.useMockAi ? "on" : "off"}</Badge>
+            </div>
+
+            <div className="md:col-span-2">
+              <Button type="submit" disabled={!isAdmin}>
+                Save AI settings
+              </Button>
+              {!isAdmin && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Only firm admins can change AI settings.
+                </p>
+              )}
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" /> Team members
           </CardTitle>
         </CardHeader>
@@ -146,4 +256,27 @@ export default async function SettingsPage() {
       </Card>
     </div>
   );
+}
+
+interface AISettingsShape {
+  ocr_engine: OcrEngineName;
+  use_hf_classification: boolean;
+  use_hf_explanations: boolean;
+}
+
+function readAISettings(value: Json | null): AISettingsShape {
+  const fallback: AISettingsShape = {
+    ocr_engine: env.ocrEngine,
+    use_hf_classification: env.useHfClassification,
+    use_hf_explanations: env.useHfExplanations,
+  };
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
+  const v = value as Record<string, unknown>;
+  return {
+    ocr_engine: typeof v.ocr_engine === "string" ? (v.ocr_engine as OcrEngineName) : fallback.ocr_engine,
+    use_hf_classification:
+      typeof v.use_hf_classification === "boolean" ? v.use_hf_classification : fallback.use_hf_classification,
+    use_hf_explanations:
+      typeof v.use_hf_explanations === "boolean" ? v.use_hf_explanations : fallback.use_hf_explanations,
+  };
 }

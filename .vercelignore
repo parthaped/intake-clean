@@ -1,0 +1,34 @@
+# Files Vercel does not need to upload at deploy time.
+#
+# IMPORTANT: do NOT ignore `legal/policies/` — the `/legal/[slug]` page reads
+# the markdown files from there at request time. The PDFs are also served
+# from `public/legal/` which is always uploaded.
+
+# Internal-only legal documents (formation, IP assignment, NDA template,
+# contractor agreement, invention disclosure, provisional patent application).
+# These must not be exposed publicly.
+legal/formation/
+legal/ip/
+legal/signed/
+legal/README.md
+
+# Local environments and secrets.
+.env
+.env.local
+.env.*.local
+
+# Local build / cache artifacts.
+.next/
+out/
+node_modules/
+.cache/
+
+# Editor / OS noise.
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Supabase local stack (only used in local dev).
+supabase/.branches
+supabase/.temp

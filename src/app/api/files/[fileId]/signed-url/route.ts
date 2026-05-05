@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
-import { requireSession } from "@/lib/auth";
+import { requireSessionWithMfa, requireStepUpReauth } from "@/lib/auth";
 import { createSignedUrl } from "@/lib/files";
+import { enforceRateLimit } from "@/lib/security/guards";
+import { limits } from "@/lib/security/rate-limit";
 import { getServiceSupabase } from "@/lib/supabase/service";
 
 interface Context {
@@ -9,10 +11,18 @@ interface Context {
 }
 
 export async function GET(request: Request, context: Context) {
-  const ctx = await requireSession();
-  const { fileId } = await context.params;
   const url = new URL(request.url);
   const variant = url.searchParams.get("variant") ?? "processed";
+  // The `original` variant streams unredacted client uploads (passport/SSN
+  // scans). Anything coarser than `processed`/`thumbnail` requires a fresh
+  // step-up MFA assertion so a stolen session cookie alone can't exfiltrate
+  // raw PII. Other variants still require MFA-required roles to satisfy
+  // AAL2 — a previous version only called `requireSession()` here, which
+  // contradicted the dashboard pages that gated the same data behind MFA.
+  const ctx = variant === "original" ? await requireStepUpReauth() : await requireSessionWithMfa();
+  const limited = await enforceRateLimit(limits.signedUrl, `${ctx.userId}:signed-url`);
+  if (limited) return limited;
+  const { fileId } = await context.params;
 
   const service = getServiceSupabase();
   const { data: file } = await service

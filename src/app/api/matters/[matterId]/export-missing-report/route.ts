@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { recordAudit } from "@/lib/audit";
-import { requireSession } from "@/lib/auth";
+import { requireStepUpReauth } from "@/lib/auth";
 import { buildMissingDocumentsReport } from "@/lib/exports/missing-report";
 import { loadExportContext } from "@/lib/exports/shared";
 import { buildStorageKey } from "@/lib/tokens";
@@ -12,7 +12,7 @@ interface Context {
 }
 
 export async function POST(_req: Request, context: Context) {
-  const ctx = await requireSession();
+  const ctx = await requireStepUpReauth();
   const { matterId } = await context.params;
   const service = getServiceSupabase();
 

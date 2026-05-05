@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { isNextRedirectError } from "@/lib/utils";
 import type { MatterTypeT } from "@/types/database";
 
 interface ItemDraft {
@@ -71,8 +72,12 @@ export function NewRequestForm({ matterId, matterType, defaultTitle, templates }
     startTransition(async () => {
       try {
         await createRequestAction(formData);
+        // Unreachable on success: createRequestAction redirects to the
+        // matter's checklist tab (where "Send to client" lives), which
+        // throws a NEXT_REDIRECT digest error caught below and rethrown.
         toast.success("Request created");
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Could not create request");
       }
     });

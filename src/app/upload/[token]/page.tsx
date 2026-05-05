@@ -1,3 +1,4 @@
+import { BotIdClient } from "botid/client";
 import { notFound } from "next/navigation";
 import { FileWarning, ShieldCheck } from "lucide-react";
 
@@ -6,6 +7,16 @@ import { BrandMark } from "@/components/brand-mark";
 import { Card, CardContent } from "@/components/ui/card";
 import { DISCLAIMER_LINES } from "@/lib/constants";
 import { getServiceSupabase } from "@/lib/supabase/service";
+
+/**
+ * BotID protected paths. The client component below registers the upload
+ * route with BotID's challenge runtime; the matching `checkBotId()` call on
+ * the server side rejects requests that fail classification. Without the
+ * client component, `checkBotId()` reports every request as a bot.
+ */
+const BOTID_PROTECTED = [
+  { path: "/api/upload/*", method: "POST" as const },
+];
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +90,7 @@ export default async function ClientUploadPage({ params, searchParams }: PagePro
 
   return (
     <div className="min-h-screen bg-background">
+      <BotIdClient protect={BOTID_PROTECTED} />
       <Header firmName={firmName} />
       <main className="mx-auto max-w-2xl px-4 pb-16 pt-8">
         <div className="space-y-1.5">

@@ -73,8 +73,17 @@ const config: Config = {
         serif: ["var(--font-serif)", "Georgia", "serif"],
       },
       boxShadow: {
-        soft: "0 1px 2px rgba(15,30,61,0.04), 0 4px 16px rgba(15,30,61,0.04)",
-        ring: "0 0 0 3px rgba(14,140,106,0.18)",
+        soft: "0 1px 2px rgba(11,18,32,0.04), 0 8px 24px -8px rgba(11,18,32,0.08)",
+        elevated:
+          "0 1px 2px rgba(11,18,32,0.06), 0 12px 32px -10px rgba(11,18,32,0.18)",
+        ring: "0 0 0 3px rgba(34,197,94,0.18)",
+        "ring-info": "0 0 0 3px rgba(56,189,248,0.22)",
+      },
+      backgroundImage: {
+        "brand-glow":
+          "radial-gradient(80% 60% at 50% 0%, hsl(199 89% 50% / 0.10), transparent 70%), radial-gradient(80% 60% at 100% 100%, hsl(152 64% 38% / 0.08), transparent 70%)",
+        "hero-grid":
+          "linear-gradient(to right, hsl(220 18% 91% / 0.6) 1px, transparent 1px), linear-gradient(to bottom, hsl(220 18% 91% / 0.6) 1px, transparent 1px)",
       },
       keyframes: {
         "accordion-down": {

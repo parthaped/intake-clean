@@ -3,7 +3,7 @@ import { History } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { requireSession } from "@/lib/auth";
+import { requireSessionWithMfa } from "@/lib/auth";
 import { getServiceSupabase } from "@/lib/supabase/service";
 import { formatDateTime } from "@/lib/utils";
 import type { ActorType, Json } from "@/types/database";
@@ -20,7 +20,7 @@ interface AuditRow {
 }
 
 export default async function AuditLogPage() {
-  const ctx = await requireSession();
+  const ctx = await requireSessionWithMfa();
   const service = getServiceSupabase();
 
   const { data } = await service

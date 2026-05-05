@@ -4,6 +4,11 @@ import { requireSession } from "@/lib/auth";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  // Note: per-page MFA enforcement happens via `requireRole()` /
+  // `requireSessionWithMfa()` on the sensitive surfaces (settings, billing,
+  // exports). Doing it here would either let everything through, or trap
+  // un-enrolled users in a redirect loop with the MFA enrollment page (which
+  // also lives under /dashboard).
   const ctx = await requireSession();
   return (
     <AppShell

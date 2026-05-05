@@ -31,13 +31,60 @@ interface RequestRow {
   organizations: { name: string } | null;
 }
 
-function combinedStatus(...statuses: ("sent" | "sent_mock" | "failed" | undefined)[]): MessageStatus {
+/**
+ * Roll up the per-channel send result statuses into a single status to write
+ * onto the `document_requests` row and into the audit log.
+ *
+ * - "sent"      → at least one channel hit a real provider successfully
+ * - "sent_mock" → every attempted channel returned the mock-mode result
+ *                 (no provider configured, so we can't claim a real send)
+ * - "failed"    → no channel produced a successful result (every attempt
+ *                 errored, or no channel was attempted at all)
+ *
+ * Exported so the dispatch contract is unit-testable without real Supabase.
+ */
+export function combinedStatus(
+  ...statuses: ("sent" | "sent_mock" | "failed" | undefined)[]
+): MessageStatus {
   const present = statuses.filter((s): s is "sent" | "sent_mock" | "failed" => Boolean(s));
   if (present.length === 0) return "failed";
   if (present.includes("sent")) return "sent";
   if (present.every((s) => s === "sent_mock")) return "sent_mock";
   if (present.includes("failed") && !present.includes("sent")) return "failed";
   return "sent_mock";
+}
+
+export type PreferredContact = "email" | "sms" | "both";
+
+export interface ChannelPlan {
+  /** Client opted into email *and* an email address is on file. */
+  willSendEmail: boolean;
+  /** Client opted into SMS *and* a phone number is on file. */
+  willSendSms: boolean;
+  /**
+   * Set when neither channel can fire — used by the orchestrator to write
+   * the "no contact info" system message instead of silently no-op-ing.
+   */
+  reason?: "no_contact";
+}
+
+/**
+ * Decide which channels should be used for a given client. Pure function so it
+ * can be exhaustively tested without spinning up Supabase or Resend/Twilio.
+ */
+export function planChannels(
+  preferredContact: PreferredContact,
+  email: string | null,
+  phone: string | null,
+): ChannelPlan {
+  const wantsEmail = preferredContact === "email" || preferredContact === "both";
+  const wantsSms = preferredContact === "sms" || preferredContact === "both";
+  const willSendEmail = wantsEmail && Boolean(email);
+  const willSendSms = wantsSms && Boolean(phone);
+  if (!willSendEmail && !willSendSms) {
+    return { willSendEmail, willSendSms, reason: "no_contact" };
+  }
+  return { willSendEmail, willSendSms };
 }
 
 export async function sendRequestEmailAndSms(args: SendRequestArgs) {
@@ -69,13 +116,12 @@ export async function sendRequestEmailAndSms(args: SendRequestArgs) {
   };
   const message = args.kind === "initial" ? renderInitial(ctx) : renderReminder(ctx);
 
-  const wantsEmail = client.preferred_contact === "email" || client.preferred_contact === "both";
-  const wantsSms = client.preferred_contact === "sms" || client.preferred_contact === "both";
+  const plan = planChannels(client.preferred_contact, client.email, client.phone);
 
   let emailResult: Awaited<ReturnType<typeof sendEmail>> | undefined;
   let smsResult: Awaited<ReturnType<typeof sendSms>> | undefined;
 
-  if (wantsEmail && client.email) {
+  if (plan.willSendEmail && client.email) {
     emailResult = await sendEmail({
       to: client.email,
       subject: message.subject,
@@ -95,7 +141,7 @@ export async function sendRequestEmailAndSms(args: SendRequestArgs) {
     });
   }
 
-  if (wantsSms && client.phone) {
+  if (plan.willSendSms && client.phone) {
     smsResult = await sendSms({ to: client.phone, body: message.smsBody });
     await service.from("client_messages").insert({
       organization_id: args.organizationId,
@@ -127,13 +173,27 @@ export async function sendRequestEmailAndSms(args: SendRequestArgs) {
 
   const finalStatus = combinedStatus(emailResult?.status, smsResult?.status);
 
-  await service
-    .from("document_requests")
-    .update({
-      status: "sent",
-      sent_at: new Date().toISOString(),
-    })
-    .eq("id", args.requestId);
+  // Only stamp the request row on a successful initial send. Previously we
+  // unconditionally wrote `status: "sent"` here, which:
+  //   - clobbered `partially_complete` back to `sent` whenever staff sent a
+  //     reminder after the client had already started uploading,
+  //   - flipped to `sent` even when both email and SMS failed,
+  //   - reset `sent_at` on every reminder (breaking "first sent at" reports).
+  // Reminders are observable through the audit log + the `client_messages`
+  // row, so the request status doesn't need to move for them.
+  if (args.kind === "initial" && finalStatus !== "failed") {
+    await service
+      .from("document_requests")
+      .update({
+        status: "sent",
+        sent_at: new Date().toISOString(),
+      })
+      .eq("id", args.requestId)
+      // Don't downgrade a `partially_complete` / `submitted` request just
+      // because someone resent the original email. The status filter scopes
+      // the update to rows that haven't moved past the initial send.
+      .in("status", ["draft", "sent"]);
+  }
 
   await recordAudit({
     organizationId: args.organizationId,

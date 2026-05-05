@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { recordAudit } from "@/lib/audit";
-import { requireSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { sendReuploadMessage } from "@/lib/messaging/send-reupload";
+import { enforceRateLimit } from "@/lib/security/guards";
+import { limits } from "@/lib/security/rate-limit";
 import { getServiceSupabase } from "@/lib/supabase/service";
 
 const schema = z.object({ reason: z.string().min(5) });
@@ -13,7 +15,12 @@ interface Context {
 }
 
 export async function POST(request: Request, context: Context) {
-  const ctx = await requireSession();
+  // Re-upload triggers an outbound email/SMS to the client. Restricted to
+  // staff roles so a hypothetical viewer/client-portal session can't
+  // weaponise this endpoint as a spam vector.
+  const ctx = await requireRole(["admin", "attorney", "paralegal"]);
+  const limited = await enforceRateLimit(limits.fileAction, `${ctx.userId}:reupload`);
+  if (limited) return limited;
   const { fileId } = await context.params;
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
@@ -28,19 +35,32 @@ export async function POST(request: Request, context: Context) {
     .maybeSingle();
   if (!file) return new NextResponse("File not found", { status: 404 });
 
-  await service
+  // Surface DB write failures as 500s instead of silently 200-OK-ing the
+  // staff member. Previously we discarded the error from each `.update()`
+  // and the user thought a re-upload had been requested even when none of
+  // the rows actually moved (file still showed `needs_review`, no
+  // review_task got created, no message was queued).
+  const fileUpdate = await service
     .from("uploaded_files")
     .update({ status: "needs_reupload" })
     .eq("id", file.id);
+  if (fileUpdate.error) {
+    console.error("[request-reupload] could not update file status", fileUpdate.error);
+    return new NextResponse("Could not update file status", { status: 500 });
+  }
 
   if (file.request_item_id) {
-    await service
+    const itemUpdate = await service
       .from("document_request_items")
       .update({ status: "needs_reupload" })
       .eq("id", file.request_item_id);
+    if (itemUpdate.error) {
+      console.error("[request-reupload] could not update request item", itemUpdate.error);
+      return new NextResponse("Could not update request item", { status: 500 });
+    }
   }
 
-  await service
+  const reviewUpsert = await service
     .from("review_tasks")
     .upsert(
       {
@@ -53,6 +73,10 @@ export async function POST(request: Request, context: Context) {
       },
       { onConflict: "uploaded_file_id" },
     );
+  if (reviewUpsert.error) {
+    console.error("[request-reupload] could not upsert review task", reviewUpsert.error);
+    return new NextResponse("Could not record review task", { status: 500 });
+  }
 
   if (file.request_id && file.request_item_id) {
     try {

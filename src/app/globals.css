@@ -4,45 +4,45 @@
 
 @layer base {
   :root {
-    --background: 48 24% 97%;
-    --foreground: 220 45% 12%;
+    --background: 220 30% 99%;
+    --foreground: 222 47% 9%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 45% 12%;
+    --card-foreground: 222 47% 9%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 45% 12%;
+    --popover-foreground: 222 47% 9%;
 
-    --primary: 220 60% 16%;
-    --primary-foreground: 48 24% 97%;
+    --primary: 222 47% 11%;
+    --primary-foreground: 220 30% 99%;
 
-    --navy: 220 60% 16%;
-    --navy-foreground: 48 24% 97%;
+    --navy: 222 47% 11%;
+    --navy-foreground: 220 30% 99%;
 
-    --secondary: 220 18% 94%;
-    --secondary-foreground: 220 45% 12%;
+    --secondary: 220 22% 95%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 220 14% 96%;
+    --muted: 220 22% 96%;
     --muted-foreground: 220 12% 42%;
 
-    --accent: 162 73% 30%;
+    --accent: 152 64% 38%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 65% 45%;
+    --destructive: 0 72% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 56% 36%;
+    --success: 152 64% 38%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 36 92% 48%;
-    --warning-foreground: 36 92% 12%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 38 92% 12%;
 
-    --info: 210 80% 42%;
+    --info: 199 89% 50%;
     --info-foreground: 0 0% 100%;
 
-    --border: 220 16% 88%;
-    --input: 220 16% 88%;
-    --ring: 162 73% 30%;
+    --border: 220 18% 91%;
+    --input: 220 18% 91%;
+    --ring: 152 64% 38%;
 
     --radius: 1rem;
 
@@ -51,25 +51,25 @@
   }
 
   .dark {
-    --background: 220 45% 6%;
-    --foreground: 48 24% 97%;
-    --card: 220 40% 9%;
-    --card-foreground: 48 24% 97%;
-    --popover: 220 40% 9%;
-    --popover-foreground: 48 24% 97%;
-    --primary: 48 24% 97%;
-    --primary-foreground: 220 45% 12%;
-    --secondary: 220 25% 16%;
-    --secondary-foreground: 48 24% 97%;
-    --muted: 220 25% 14%;
+    --background: 222 47% 6%;
+    --foreground: 220 30% 99%;
+    --card: 222 40% 9%;
+    --card-foreground: 220 30% 99%;
+    --popover: 222 40% 9%;
+    --popover-foreground: 220 30% 99%;
+    --primary: 220 30% 99%;
+    --primary-foreground: 222 47% 9%;
+    --secondary: 222 25% 16%;
+    --secondary-foreground: 220 30% 99%;
+    --muted: 222 25% 14%;
     --muted-foreground: 220 14% 64%;
-    --accent: 162 73% 36%;
-    --accent-foreground: 48 24% 97%;
-    --destructive: 0 65% 50%;
-    --destructive-foreground: 48 24% 97%;
-    --border: 220 22% 18%;
-    --input: 220 22% 18%;
-    --ring: 162 73% 36%;
+    --accent: 152 64% 44%;
+    --accent-foreground: 222 47% 9%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 220 30% 99%;
+    --border: 222 22% 18%;
+    --input: 222 22% 18%;
+    --ring: 152 64% 44%;
   }
 }
 
@@ -93,5 +93,72 @@
   }
   .focus-ring {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  .legal-prose {
+    @apply text-[0.95rem] leading-relaxed text-foreground;
+    font-family: var(--font-serif);
+  }
+  .legal-prose h1 {
+    @apply mt-10 mb-4 font-sans text-3xl font-semibold tracking-tight;
+  }
+  .legal-prose h2 {
+    @apply mt-10 mb-3 font-sans text-2xl font-semibold tracking-tight;
+  }
+  .legal-prose h3 {
+    @apply mt-8 mb-2 font-sans text-xl font-semibold tracking-tight;
+  }
+  .legal-prose h4,
+  .legal-prose h5,
+  .legal-prose h6 {
+    @apply mt-6 mb-2 font-sans text-base font-semibold tracking-tight;
+  }
+  .legal-prose p {
+    @apply my-4;
+  }
+  .legal-prose ul,
+  .legal-prose ol {
+    @apply my-4 ml-6 space-y-1.5;
+  }
+  .legal-prose ul {
+    @apply list-disc;
+  }
+  .legal-prose ol {
+    @apply list-decimal;
+  }
+  .legal-prose a {
+    @apply text-accent underline-offset-2 hover:underline;
+    word-break: break-word;
+  }
+  .legal-prose blockquote {
+    @apply my-5 rounded-r-md border-l-4 border-accent bg-secondary/50 px-4 py-3 font-sans text-sm text-muted-foreground;
+  }
+  .legal-prose blockquote p {
+    @apply my-1;
+  }
+  .legal-prose code {
+    @apply rounded bg-secondary px-1.5 py-0.5 font-mono text-[0.85em] text-foreground;
+  }
+  .legal-prose pre {
+    @apply my-5 overflow-x-auto rounded-lg border border-border bg-secondary/60 p-4 font-mono text-xs;
+  }
+  .legal-prose pre code {
+    @apply bg-transparent p-0;
+  }
+  .legal-prose hr {
+    @apply my-8 border-border;
+  }
+  .legal-prose table {
+    @apply my-5 w-full border-collapse text-sm;
+  }
+  .legal-prose th,
+  .legal-prose td {
+    @apply border border-border px-3 py-2 align-top;
+  }
+  .legal-prose th {
+    @apply bg-secondary font-sans font-semibold;
+  }
+  .legal-prose strong {
+    @apply font-semibold text-foreground;
   }
 }

@@ -8,8 +8,10 @@ import { createMatterAction } from "@/app/dashboard/matters/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MATTER_TYPE_LABEL } from "@/lib/constants";
+import { isNextRedirectError } from "@/lib/utils";
 import type { MatterTypeT } from "@/types/database";
 
 interface ClientOption {
@@ -43,6 +45,7 @@ export function NewMatterForm({ clients }: NewMatterFormProps) {
       try {
         await createMatterAction(formData);
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Could not create matter");
       }
     });
@@ -126,7 +129,7 @@ export function NewMatterForm({ clients }: NewMatterFormProps) {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="client_phone">Mobile (for SMS)</Label>
-              <Input id="client_phone" name="client_phone" type="tel" placeholder="+1 555 555 1212" />
+              <PhoneInput id="client_phone" name="client_phone" placeholder="555 555 1212" />
             </div>
             <div className="space-y-1.5">
               <Label>Preferred contact</Label>

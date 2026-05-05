@@ -8,9 +8,11 @@ import {
   FilePlus2,
   FolderKanban,
   History,
+  KeyRound,
   LayoutDashboard,
   Settings,
   ShieldCheck,
+  UserCheck,
   Wrench,
 } from "lucide-react";
 
@@ -23,6 +25,8 @@ const navItems = [
   { href: "/dashboard/review", label: "Review queue", Icon: ShieldCheck },
   { href: "/dashboard/templates", label: "Templates", Icon: ClipboardList },
   { href: "/dashboard/audit-log", label: "Audit log", Icon: History },
+  { href: "/dashboard/security/access-review", label: "Access review", Icon: UserCheck },
+  { href: "/dashboard/security/mfa", label: "Security", Icon: KeyRound },
   { href: "/dashboard/settings", label: "Settings", Icon: Settings },
   { href: "/dashboard/billing", label: "Billing", Icon: CreditCard },
 ];

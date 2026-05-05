@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
@@ -20,9 +20,15 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function LoginForm() {
-  const router = useRouter();
   const params = useSearchParams();
   const [pending, setPending] = useState(false);
+
+  // Surface errors that the /auth/callback route attaches when an email link
+  // can't be redeemed (expired code, missing code, supabase-side failure).
+  useEffect(() => {
+    const errorMessage = params.get("error");
+    if (errorMessage) toast.error(errorMessage);
+  }, [params]);
 
   const {
     register,
@@ -41,8 +47,18 @@ export function LoginForm() {
         return;
       }
       toast.success("Signed in");
-      router.replace(params.get("next") ?? "/dashboard");
-      router.refresh();
+
+      // Validate `next` is a same-origin path so the form can't be coerced
+      // into redirecting somewhere unsafe.
+      const requestedNext = params.get("next");
+      const target = requestedNext && requestedNext.startsWith("/") ? requestedNext : "/dashboard";
+
+      // Use a full reload rather than `router.replace`. The auth cookies that
+      // `signInWithPassword` just wrote need to ride the next request, and
+      // a hard navigation guarantees that — soft navigations have raced our
+      // middleware in the past and bounced the user straight back to /login,
+      // which is what produced the "forever loading" symptom on the spinner.
+      window.location.assign(target);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Sign in failed");
       setPending(false);

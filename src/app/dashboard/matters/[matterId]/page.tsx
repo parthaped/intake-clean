@@ -25,7 +25,9 @@ import { getServiceSupabase } from "@/lib/supabase/service";
 import { env } from "@/lib/env";
 import { formatDateTime, formatBytes, relativeTime } from "@/lib/utils";
 
+import { ArchiveMatterButton } from "@/app/dashboard/matters/[matterId]/archive-matter-button";
 import { CopyLinkButton } from "@/app/dashboard/matters/[matterId]/copy-link-button";
+import { DeleteMatterDialog } from "@/app/dashboard/matters/[matterId]/delete-matter-dialog";
 import { SendRequestButton } from "@/app/dashboard/matters/[matterId]/send-request-button";
 import { SendCompletionButton } from "@/app/dashboard/matters/[matterId]/send-completion-button";
 import { ExportCard } from "@/components/export-card";
@@ -487,6 +489,15 @@ export default async function MatterDetailPage({ params, searchParams }: PagePro
                   <Inbox className="h-4 w-4" /> Open review queue
                 </Link>
               </Button>
+              <ArchiveMatterButton matterId={matter.id} status={matter.status} />
+              {ctx.profile.role === "admin" && (
+                <DeleteMatterDialog
+                  matterId={matter.id}
+                  matterName={matter.matter_name}
+                  fileCount={files.length}
+                  exportCount={exports.length}
+                />
+              )}
             </CardContent>
           </Card>
         </aside>

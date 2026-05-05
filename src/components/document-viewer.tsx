@@ -20,11 +20,28 @@ export function DocumentViewer({ url, mime, fileName, emptyLabel = "No preview a
   }
 
   if (mime === "application/pdf") {
+    // PDFs can contain JavaScript and embedded forms. We render the file
+    // inside a sandboxed iframe so any script the PDF tries to execute
+    // cannot reach window.parent, cookies, storage, or the document
+    // origin. We deliberately do NOT include `allow-scripts`. The browser's
+    // native PDF viewer still works because it runs as a plugin, not as
+    // page scripts.
     return (
       <div className="rounded-2xl border border-border bg-card overflow-hidden">
-        <iframe src={url} title={fileName} className="h-[480px] w-full" />
+        <iframe
+          src={url}
+          title={fileName}
+          className="h-[480px] w-full"
+          sandbox=""
+          referrerPolicy="no-referrer"
+        />
         <div className="flex justify-end border-t border-border bg-secondary/40 px-3 py-2">
-          <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+          >
             Open in new tab <ExternalLink className="h-3 w-3" />
           </a>
         </div>
@@ -38,7 +55,12 @@ export function DocumentViewer({ url, mime, fileName, emptyLabel = "No preview a
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={url} alt={fileName} className="max-h-[480px] w-full object-contain bg-secondary/30" />
         <div className="flex justify-end border-t border-border bg-secondary/40 px-3 py-2">
-          <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 text-xs text-accent hover:underline"
+          >
             Open original <ExternalLink className="h-3 w-3" />
           </a>
         </div>

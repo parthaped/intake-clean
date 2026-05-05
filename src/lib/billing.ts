@@ -53,7 +53,10 @@ export async function checkMatterQuota(args: {
   status: SubscriptionStatusT;
 }): Promise<QuotaCheck> {
   const usage = await loadOrganizationUsage(args.organizationId);
-  const planDef = PLAN_BY_TIER[args.plan];
+  // Defensive fallback for DB drift: if the org's plan column ever holds a
+  // value that's not in PLAN_BY_TIER (renamed tier, partial migration), fall
+  // back to the starter plan limits rather than throwing on `.matterLimit`.
+  const planDef = PLAN_BY_TIER[args.plan] ?? PLAN_BY_TIER.starter;
   const limit = planDef.matterLimit;
   const billingActive = env.devBypassBilling || ACTIVE_STATUSES.includes(args.status);
 

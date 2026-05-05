@@ -1,9 +1,9 @@
-import { CreditCard, Database, Folder } from "lucide-react";
+import { CalendarClock, CreditCard, Database, Folder } from "lucide-react";
 
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { requireSession } from "@/lib/auth";
+import { requireSessionWithMfa } from "@/lib/auth";
 import { checkMatterQuota } from "@/lib/billing";
 import { PLAN_BY_TIER, PLANS } from "@/lib/constants";
 import { env, integrations } from "@/lib/env";
@@ -21,8 +21,19 @@ function maskedSubscriptionId(id: string | null) {
   return `Linked · …${id.slice(-6)}`;
 }
 
+function formatAccessEndsAt(iso: string | null): string | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 export default async function BillingPage() {
-  const ctx = await requireSession();
+  const ctx = await requireSessionWithMfa();
   const quota = await checkMatterQuota({
     organizationId: ctx.organization.id,
     plan: ctx.organization.plan,
@@ -47,6 +58,9 @@ export default async function BillingPage() {
   const subscriptionActive =
     ctx.organization.subscription_status === "active" ||
     ctx.organization.subscription_status === "trialing";
+  const cancelAtPeriodEnd = ctx.organization.cancel_at_period_end ?? false;
+  const accessEndsAtIso = ctx.organization.current_period_end ?? null;
+  const accessEndsAtLabel = formatAccessEndsAt(accessEndsAtIso);
 
   const storageUsedLabel = `${quota.storage.usedMb} MB`;
 
@@ -91,13 +105,23 @@ export default async function BillingPage() {
           }
           intent={storageOverLimit && !env.devBypassBilling ? "warning" : "default"}
         />
-        <StatCard
-          Icon={CreditCard}
-          label="Subscription"
-          value={subscriptionStatus}
-          trend={maskedSubscriptionId(ctx.organization.stripe_subscription_id)}
-          intent={subscriptionActive ? "success" : "default"}
-        />
+        {cancelAtPeriodEnd ? (
+          <StatCard
+            Icon={CalendarClock}
+            label="Access ends"
+            value={accessEndsAtLabel ?? "End of period"}
+            trend="No further charges. Resume below to continue."
+            intent="warning"
+          />
+        ) : (
+          <StatCard
+            Icon={CreditCard}
+            label="Subscription"
+            value={subscriptionStatus}
+            trend={maskedSubscriptionId(ctx.organization.stripe_subscription_id)}
+            intent={subscriptionActive ? "success" : "default"}
+          />
+        )}
       </div>
 
       <Card>
@@ -108,6 +132,9 @@ export default async function BillingPage() {
           <BillingGrid
             currentPlan={ctx.organization.plan}
             hasStripeCustomer={Boolean(ctx.organization.stripe_customer_id)}
+            hasActiveSubscription={subscriptionActive}
+            cancelAtPeriodEnd={cancelAtPeriodEnd}
+            accessEndsAt={accessEndsAtIso}
             stripeConfigured={integrations.hasStripe}
             configuredTiers={configuredTiers}
           />

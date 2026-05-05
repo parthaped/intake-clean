@@ -2,7 +2,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   CheckCircle2,
-  FileScan,
   FileSpreadsheet,
   ImageDown,
   MessageSquareText,
@@ -12,6 +11,10 @@ import {
   Workflow,
 } from "lucide-react";
 
+import { AnimatedStatBand } from "@/components/landing/animated-stat";
+import { DeliverablesTabs } from "@/components/landing/deliverables-tabs";
+import { LiveDocumentCard } from "@/components/landing/live-document-card";
+import { PipelineDemo } from "@/components/landing/pipeline-demo";
 import { MarketingShell } from "@/components/marketing-shell";
 import { PricingCard } from "@/components/pricing-card";
 import { Badge } from "@/components/ui/badge";
@@ -23,9 +26,18 @@ export default function HomePage() {
   return (
     <MarketingShell>
       <section className="relative overflow-hidden">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 -z-10 bg-brand-glow"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[520px] bg-hero-grid bg-[size:36px_36px] opacity-60 [mask-image:linear-gradient(to_bottom,black,transparent_85%)]"
+        />
         <div className="container grid gap-10 py-20 md:py-28 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
           <div className="space-y-6">
-            <Badge variant="outline" className="border-primary/40 bg-primary/5 text-primary">
+            <Badge variant="outline" className="border-primary/30 bg-primary/[0.04] text-primary backdrop-blur">
+              <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent" />
               Built for small law firms
             </Badge>
             <h1 className="text-balance text-4xl font-semibold tracking-tight md:text-6xl">
@@ -59,34 +71,7 @@ export default function HomePage() {
               ))}
             </ul>
           </div>
-          <div className="relative">
-            <div className="absolute -inset-6 rounded-[3rem] bg-primary/5 blur-2xl" aria-hidden />
-            <Card className="relative overflow-hidden border-border/70 shadow-soft">
-              <CardContent className="space-y-4 p-6">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <FileScan className="h-4 w-4 text-primary" /> Garcia v. USCIS · Immigration packet
-                </div>
-                <div className="grid gap-2 text-sm">
-                  {[
-                    { label: "Government ID — passport", status: "Accepted" },
-                    { label: "Marriage certificate", status: "Needs re-upload" },
-                    { label: "Bank statements (3 months)", status: "Processing" },
-                    { label: "Birth certificate (translated)", status: "Accepted" },
-                  ].map((row) => (
-                    <div
-                      key={row.label}
-                      className="flex items-center justify-between rounded-xl border border-border/70 bg-card/60 px-3 py-2"
-                    >
-                      <span>{row.label}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {row.status}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <LiveDocumentCard />
         </div>
       </section>
 
@@ -153,6 +138,16 @@ export default function HomePage() {
       </Section>
 
       <Section
+        eyebrow="Under the hood"
+        title="A pipeline that knows when to stop."
+        description="Most document AI charges per page on every input. IntakeClean charges $0 on the easy 90% and only escalates to a paid AI provider when local rules can't decide — and never if your firm has it disabled."
+      >
+        <PipelineDemo />
+      </Section>
+
+      <AnimatedStatBand />
+
+      <Section
         eyebrow="Built for"
         title="Small firms drowning in client intake."
         description="If your team is two paralegals and one attorney handling immigration, family law, personal injury, probate, or real estate matters — this is for you."
@@ -173,9 +168,10 @@ export default function HomePage() {
       <Section
         eyebrow="What you get"
         title="Three deliverables, every matter."
-        description="Stop reassembling deliverables by hand. Every matter exports the same three artifacts in seconds."
+        description="Stop reassembling deliverables by hand. Click between the formats below to see what your team actually exports at the end of every intake."
       >
-        <div className="grid gap-4 md:grid-cols-3">
+        <DeliverablesTabs />
+        <div className="mt-6 grid gap-3 md:grid-cols-3">
           {[
             {
               icon: FileSpreadsheet,
@@ -193,13 +189,13 @@ export default function HomePage() {
               body: "Plain-English summary of items still needed and why earlier uploads need a retake.",
             },
           ].map((item) => (
-            <Card key={item.title}>
-              <CardContent className="space-y-3 p-5">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <item.icon className="h-5 w-5" />
+            <Card key={item.title} className="border-dashed bg-card/50">
+              <CardContent className="space-y-2 p-4 text-sm">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <item.icon className="h-4 w-4" />
                 </span>
                 <p className="font-medium">{item.title}</p>
-                <p className="text-sm text-muted-foreground">{item.body}</p>
+                <p className="text-xs text-muted-foreground">{item.body}</p>
               </CardContent>
             </Card>
           ))}

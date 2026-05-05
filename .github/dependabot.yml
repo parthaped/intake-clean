@@ -1,0 +1,50 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    groups:
+      # Group security-relevant deps so a CVE patch lands as one PR rather
+      # than three. We also group dev-only updates so the PR queue stays
+      # readable.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      runtime-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@types/*"
+          - "eslint*"
+          - "jasmine*"
+          - "@cucumber/*"
+          - "puppeteer"
+      dev-tooling:
+        applies-to: version-updates
+        patterns:
+          - "@types/*"
+          - "eslint*"
+          - "jasmine*"
+          - "@cucumber/*"
+          - "puppeteer"
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+      day: monday
+    labels:
+      - dependencies
+      - ci

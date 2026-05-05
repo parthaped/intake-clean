@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { isNextRedirectError } from "@/lib/utils";
 import { completeOnboarding } from "@/app/onboarding/actions";
 
 interface OnboardingFormProps {
@@ -22,6 +23,7 @@ export function OnboardingForm({ defaultName, defaultFirm }: OnboardingFormProps
       try {
         await completeOnboarding(formData);
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Could not finish setup");
       }
     });

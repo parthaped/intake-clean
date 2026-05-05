@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { MATTER_TYPE_LABEL } from "@/lib/constants";
+import { isNextRedirectError } from "@/lib/utils";
 import type { MatterTypeT } from "@/types/database";
 
 interface ItemDraft {
@@ -44,6 +45,7 @@ export function NewTemplateForm() {
         await createTemplateAction(formData);
         toast.success("Template created");
       } catch (err) {
+        if (isNextRedirectError(err)) throw err;
         toast.error(err instanceof Error ? err.message : "Could not create template");
       }
     });

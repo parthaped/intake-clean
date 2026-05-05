@@ -7,12 +7,29 @@ import { toast } from "sonner";
 import { ReuploadReasonDialog } from "@/components/reupload-reason-dialog";
 import { Button } from "@/components/ui/button";
 
+interface ReuploadPreset {
+  id: string;
+  label: string;
+  text: string;
+}
+
 interface ReviewActionBarProps {
   fileId: string;
+  presets: ReuploadPreset[];
+  defaultReason?: string;
+  defaultPresetId?: string;
+  canRewriteWithHF: boolean;
   onActionComplete?: () => void;
 }
 
-export function ReviewActionBar({ fileId, onActionComplete }: ReviewActionBarProps) {
+export function ReviewActionBar({
+  fileId,
+  presets,
+  defaultReason,
+  defaultPresetId,
+  canRewriteWithHF,
+  onActionComplete,
+}: ReviewActionBarProps) {
   const [pending, startTransition] = useTransition();
   const [reuploadOpen, setReuploadOpen] = useState(false);
 
@@ -49,6 +66,10 @@ export function ReviewActionBar({ fileId, onActionComplete }: ReviewActionBarPro
 
       <ReuploadReasonDialog
         fileId={fileId}
+        presets={presets}
+        defaultReason={defaultReason}
+        defaultPresetId={defaultPresetId}
+        canRewriteWithHF={canRewriteWithHF}
         open={reuploadOpen}
         onOpenChange={setReuploadOpen}
         onComplete={onActionComplete}

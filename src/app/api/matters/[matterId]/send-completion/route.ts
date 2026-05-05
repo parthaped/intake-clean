@@ -1,14 +1,18 @@
 import { NextResponse } from "next/server";
 
-import { requireSession } from "@/lib/auth";
+import { requireRole } from "@/lib/auth";
 import { sendCompletionMessage } from "@/lib/messaging/send-completion";
+import { enforceRateLimit } from "@/lib/security/guards";
+import { limits } from "@/lib/security/rate-limit";
 
 interface Context {
   params: Promise<{ matterId: string }>;
 }
 
 export async function POST(_request: Request, context: Context) {
-  const ctx = await requireSession();
+  const ctx = await requireRole(["admin", "attorney", "paralegal"]);
+  const limited = await enforceRateLimit(limits.fileAction, `${ctx.userId}:completion-send`);
+  if (limited) return limited;
   const { matterId } = await context.params;
   try {
     await sendCompletionMessage({

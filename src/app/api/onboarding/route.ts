@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { enforceRateLimit } from "@/lib/security/guards";
+import { clientIp, limits } from "@/lib/security/rate-limit";
 import { getServerSupabase } from "@/lib/supabase/server";
 import { bootstrapOrganization } from "@/lib/onboarding";
 
@@ -21,6 +23,12 @@ export async function POST(request: Request) {
   if (error || !data.user) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
+
+  // Bucket by user id with a fallback to IP. Prevents an attacker from
+  // bouncing a compromised session through onboarding repeatedly to spin
+  // up phantom organizations.
+  const limited = await enforceRateLimit(limits.onboarding, `${data.user.id}:${clientIp(request)}`);
+  if (limited) return limited;
 
   try {
     const result = await bootstrapOrganization({

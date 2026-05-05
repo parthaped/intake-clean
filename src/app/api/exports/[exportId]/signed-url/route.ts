@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { requireSession } from "@/lib/auth";
+import { requireSessionWithMfa } from "@/lib/auth";
 import { createSignedUrl } from "@/lib/files";
 import { getServiceSupabase } from "@/lib/supabase/service";
 
@@ -9,7 +9,14 @@ interface Context {
 }
 
 export async function GET(request: Request, context: Context) {
-  const ctx = await requireSession();
+  // Exports bundle every accepted document for the matter (passports, SSNs,
+  // client correspondence). The export-creation routes already gate on
+  // `requireStepUpReauth()`; the download route was only checking
+  // `requireSession()`, which let any session — including ones that hadn't
+  // satisfied AAL2 — bypass MFA. We at least require AAL2 here. We don't
+  // require step-up reauth because the URL is short-lived (10 min) and
+  // re-prompting on every download would be hostile UX.
+  const ctx = await requireSessionWithMfa();
   const { exportId } = await context.params;
   const service = getServiceSupabase();
 

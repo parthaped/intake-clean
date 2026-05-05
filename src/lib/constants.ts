@@ -1,8 +1,11 @@
 import type {
+  AIProviderName,
+  ClassificationSource,
   ExportType,
   JobStatus,
   MatterStatus,
   MatterTypeT,
+  OcrEngineName,
   RequestItemStatus,
   RequestStatus,
   ReviewStatus,
@@ -211,18 +214,58 @@ export const PLAN_BY_TIER: Record<PlanTier, PlanDefinition> = PLANS.reduce(
   {} as Record<PlanTier, PlanDefinition>,
 );
 
-export const REUPLOAD_REASONS = [
-  "The page is too blurry to read.",
-  "Part of the document is cut off. Please retake with all four corners visible.",
-  "This looks like a screenshot. Please upload the original PDF if possible.",
-  "We need page 2 of this document.",
-  "The image is too dark or has too much glare.",
-  "This is not the document we asked for.",
-  "We need a more recent copy of this document.",
+/**
+ * Multiple-choice options shown when a firm cancels their subscription.
+ * Tailored to IntakeClean's purpose (small-firm document intake) so the
+ * answers we collect are actually useful as signal for product decisions.
+ *
+ * `id` is what we persist; `label` is shown in the UI. Don't rename ids
+ * once they're in production data — analytics queries depend on them.
+ */
+export interface CancellationReasonOption {
+  id: string;
+  label: string;
+}
+
+export const CANCELLATION_REASONS: readonly CancellationReasonOption[] = [
+  { id: "too_expensive", label: "Too expensive for our firm" },
+  { id: "low_volume", label: "Not enough active matters to justify the cost" },
+  { id: "missing_features", label: "Missing features we need" },
+  { id: "switched_tool", label: "Switched to another intake or document tool" },
+  { id: "in_house", label: "Building intake workflow in-house" },
+  { id: "ai_quality", label: "Document quality / AI checks didn't meet expectations" },
+  { id: "client_adoption", label: "Clients aren't using the upload links" },
+  { id: "plan_limits", label: "Plan limits don't fit our firm" },
+  { id: "trial_only", label: "Just trying it out / no longer needed" },
+  { id: "other", label: "Other reason" },
 ] as const;
 
+export const CANCELLATION_REASON_IDS: readonly string[] = CANCELLATION_REASONS.map((r) => r.id);
+
 export const DISCLAIMER_LINES = [
+  "AI checks are assistive only. Firm staff must review every document before use.",
+  "Prepared for firm review. Not a legal sufficiency determination.",
   "IntakeClean helps organize documents and does not provide legal advice.",
-  "All AI classifications and quality checks must be reviewed by firm staff.",
-  "Do not rely on IntakeClean to determine legal sufficiency of a filing.",
 ];
+
+export const AI_PROVIDER_LABEL: Record<AIProviderName, string> = {
+  mock: "Mock",
+  local_ocr_only: "Local OCR only",
+  huggingface_provider: "Hugging Face Provider",
+  huggingface_endpoint: "Hugging Face Endpoint",
+};
+
+export const OCR_ENGINE_LABEL: Record<OcrEngineName, string> = {
+  tesseract: "Tesseract",
+  paddleocr: "PaddleOCR (coming soon)",
+  mock: "Mock",
+  none: "Not run",
+};
+
+export const CLASSIFICATION_SOURCE_LABEL: Record<ClassificationSource, string> = {
+  rules: "Rules",
+  ocr: "OCR keywords",
+  huggingface: "Hugging Face",
+  manual: "Staff override",
+  fallback: "Fallback",
+};

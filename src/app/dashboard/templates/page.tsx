@@ -1,33 +1,57 @@
 import Link from "next/link";
-import { ClipboardList, FileBadge } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { MATTER_TYPE_LABEL } from "@/lib/constants";
 import { requireSession } from "@/lib/auth";
 import { getServiceSupabase } from "@/lib/supabase/service";
+import type { MatterTypeT } from "@/types/database";
+
+import { TemplateCard, type TemplateCardItem } from "./template-card";
+
+interface TemplateRow {
+  id: string;
+  name: string;
+  matter_type: MatterTypeT;
+  description: string | null;
+  is_global: boolean;
+  organization_id: string | null;
+  created_at: string;
+  checklist_template_items: TemplateCardItem[];
+}
 
 export default async function TemplatesPage() {
   const ctx = await requireSession();
   const service = getServiceSupabase();
 
-  type TemplateRow = {
-    id: string;
-    name: string;
-    matter_type: import("@/types/database").MatterTypeT;
-    description: string | null;
-    is_global: boolean;
-    created_at: string;
-    checklist_template_items: Array<{ count: number }>;
-  };
-
   const templatesRes = await service
     .from("checklist_templates")
-    .select("id, name, matter_type, description, is_global, created_at, checklist_template_items(count)")
+    .select(
+      "id, name, matter_type, description, is_global, organization_id, created_at, checklist_template_items(id, title, description, required, sort_order)",
+    )
     .or(`organization_id.eq.${ctx.organization.id},is_global.eq.true`)
     .order("name", { ascending: true });
-  const templates = (templatesRes.data ?? []) as TemplateRow[];
+  const rawTemplates = (templatesRes.data ?? []) as TemplateRow[];
+
+  // Deduplicate by (matter_type, name): onboarding copies global templates
+  // into each org as is_global=false rows, so the same template would
+  // otherwise appear twice. Prefer the org-owned copy when both exist so
+  // any local edits/customizations are reflected.
+  const dedupedByKey = new Map<string, TemplateRow>();
+  for (const tpl of rawTemplates) {
+    const key = `${tpl.matter_type}::${tpl.name.trim().toLowerCase()}`;
+    const existing = dedupedByKey.get(key);
+    if (!existing) {
+      dedupedByKey.set(key, tpl);
+      continue;
+    }
+    const existingIsOrgOwned = existing.organization_id === ctx.organization.id;
+    const candidateIsOrgOwned = tpl.organization_id === ctx.organization.id;
+    if (candidateIsOrgOwned && !existingIsOrgOwned) {
+      dedupedByKey.set(key, tpl);
+    }
+  }
+  const templates = Array.from(dedupedByKey.values()).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="space-y-6">
@@ -44,22 +68,19 @@ export default async function TemplatesPage() {
       {templates.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {templates.map((tpl) => {
-            const itemCount = tpl.checklist_template_items[0]?.count ?? 0;
+            const sortedItems = [...tpl.checklist_template_items].sort(
+              (a, b) => a.sort_order - b.sort_order,
+            );
             return (
-              <Card key={tpl.id} className="h-full p-5">
-                <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {MATTER_TYPE_LABEL[tpl.matter_type]} {tpl.is_global && "· Global"}
-                  </p>
-                  <h3 className="text-lg font-semibold tracking-tight text-foreground">{tpl.name}</h3>
-                  {tpl.description && <p className="text-sm text-muted-foreground">{tpl.description}</p>}
-                </div>
-                <div className="mt-5 flex items-center justify-between text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <FileBadge className="h-3.5 w-3.5" /> {itemCount} items
-                  </span>
-                </div>
-              </Card>
+              <TemplateCard
+                key={tpl.id}
+                id={tpl.id}
+                name={tpl.name}
+                matter_type={tpl.matter_type}
+                description={tpl.description}
+                is_global={tpl.is_global}
+                items={sortedItems}
+              />
             );
           })}
         </div>

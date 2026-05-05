@@ -29,8 +29,12 @@ export function ForgotPasswordForm() {
     setPending(true);
     try {
       const supabase = getBrowserSupabase();
+      // Recovery emails carry a PKCE code that has to be exchanged for a
+      // session before the user can change their password. /auth/callback
+      // does that exchange and then forwards them to the change-password
+      // surface in dashboard settings.
       const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
-        redirectTo: `${window.location.origin}/login`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/dashboard/settings`,
       });
       if (error) {
         toast.error(error.message);

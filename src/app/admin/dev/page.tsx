@@ -69,8 +69,9 @@ export default async function AdminDevPage() {
               { label: "Resend (email)", on: integrations.hasResend },
               { label: "Twilio (SMS)", on: integrations.hasTwilio },
               { label: "Stripe", on: integrations.hasStripe },
-              { label: "Google Document AI", on: integrations.hasGoogleDocAi },
-              { label: "OpenAI classifier", on: integrations.hasOpenAi },
+              { label: `Hugging Face (model: ${env.hfDocumentModel})`, on: integrations.hasHuggingFace },
+              { label: `OCR engine: ${env.ocrEngine}`, on: env.useLocalOcr },
+              { label: `AI provider: ${env.aiProvider}`, on: !integrations.useMockAi },
             ].map((row) => (
               <div
                 key={row.label}

@@ -2,8 +2,10 @@
  * Seed script to populate a fresh local Supabase project with realistic demo
  * data. Run with `npm run seed` after `supabase db reset` (or after the
  * migrations are applied to a hosted project). Requires:
- *   - SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL)
- *   - SUPABASE_SERVICE_ROLE_KEY
+ *   - One of: SUPABASE_URL, NEXT_PUBLIC_SUPABASE_URL,
+ *     NEXT_PUBLIC_STORAGE_SUPABASE_URL, STORAGE_SUPABASE_URL
+ *   - One of: SUPABASE_SECRET_KEY, SUPABASE_SERVICE_ROLE_KEY,
+ *     STORAGE_SUPABASE_SECRET_KEY, STORAGE_SUPABASE_SERVICE_ROLE_KEY
  *   - SEED_USER_EMAIL (the auth user that should own the demo org)
  *   - SEED_USER_PASSWORD
  */
@@ -36,13 +38,23 @@ loadEnvFile(join(process.cwd(), ".env"));
 
 import { createClient } from "@supabase/supabase-js";
 
-const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const url =
+  process.env.SUPABASE_URL ??
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??
+  process.env.NEXT_PUBLIC_STORAGE_SUPABASE_URL ??
+  process.env.STORAGE_SUPABASE_URL;
+const serviceKey =
+  process.env.SUPABASE_SECRET_KEY ??
+  process.env.SUPABASE_SERVICE_ROLE_KEY ??
+  process.env.STORAGE_SUPABASE_SECRET_KEY ??
+  process.env.STORAGE_SUPABASE_SERVICE_ROLE_KEY;
 const seedEmail = process.env.SEED_USER_EMAIL ?? "demo@intakeclean.test";
 const seedPassword = process.env.SEED_USER_PASSWORD ?? "intakecleanDEMO!42";
 
 if (!url || !serviceKey) {
-  console.error("Set SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL) and SUPABASE_SERVICE_ROLE_KEY to seed.");
+  console.error(
+    "Set a Supabase URL (NEXT_PUBLIC_SUPABASE_URL or the Vercel Marketplace NEXT_PUBLIC_STORAGE_SUPABASE_URL) and a secret key (SUPABASE_SECRET_KEY / SUPABASE_SERVICE_ROLE_KEY or the STORAGE_ prefixed equivalents) before running the seed.",
+  );
   process.exit(1);
 }
 
@@ -82,6 +94,12 @@ async function main() {
         plan: "solo",
         subscription_status: "active",
         storage_limit_mb: 25600,
+        ai_provider: "mock",
+        ai_settings: {
+          ocr_engine: "tesseract",
+          use_hf_classification: false,
+          use_hf_explanations: false,
+        },
       },
       { onConflict: "id" },
     )
@@ -175,6 +193,133 @@ async function main() {
     .insert(itemRecords)
     .select("id, title");
   if (itemsInsert.error) throw itemsInsert.error;
+
+  console.log("→ Seeding demo uploaded files + quality checks…");
+  const uploadedItems = itemsInsert.data ?? [];
+  const findItem = (substr: string) =>
+    uploadedItems.find((i) => i.title.toLowerCase().includes(substr.toLowerCase()))?.id ?? null;
+
+  const happyItemId = findItem("photo id");
+  const reuploadItemId = findItem("marriage");
+
+  const happyFileId = randomUUID();
+  const reuploadFileId = randomUUID();
+
+  const happyStoragePath = `${orgId}/${matterId}/original/demo-id-card.jpg`;
+  const reuploadStoragePath = `${orgId}/${matterId}/original/demo-blurry-marriage.jpg`;
+
+  const filesInsert = await supabase.from("uploaded_files").insert([
+    {
+      id: happyFileId,
+      organization_id: orgId,
+      matter_id: matterId,
+      client_id: clientInsert.data.id,
+      request_id: requestId,
+      request_item_id: happyItemId,
+      original_file_name: "drivers-license-front.jpg",
+      original_mime_type: "image/jpeg",
+      original_storage_path: happyStoragePath,
+      file_size_bytes: 412_000,
+      uploaded_by_type: "client",
+      detected_document_type: "Government ID",
+      classification_source: "rules",
+      classification_confidence: 0.86,
+      processing_provider: "mock",
+      ocr_engine: "mock",
+      ocr_text:
+        "STATE OF CALIFORNIA\nDRIVER LICENSE\nDL X1234567\nLN HERNANDEZ\nFN LUIS\n4567 OAK STREET\nLOS ANGELES CA 90034\nDOB 05/12/1988",
+      ocr_confidence: 0.91,
+      page_count: 1,
+      status: "needs_review",
+    },
+    {
+      id: reuploadFileId,
+      organization_id: orgId,
+      matter_id: matterId,
+      client_id: clientInsert.data.id,
+      request_id: requestId,
+      request_item_id: reuploadItemId,
+      original_file_name: "marriage-certificate-blurry.jpg",
+      original_mime_type: "image/jpeg",
+      original_storage_path: reuploadStoragePath,
+      file_size_bytes: 1_204_000,
+      uploaded_by_type: "client",
+      detected_document_type: "Marriage Certificate",
+      classification_source: "fallback",
+      classification_confidence: 0.45,
+      processing_provider: "mock",
+      ocr_engine: "mock",
+      ocr_text: "marriage certificate ... [text unclear]",
+      ocr_confidence: 0.32,
+      page_count: 1,
+      status: "needs_reupload",
+    },
+  ]);
+  if (filesInsert.error) throw filesInsert.error;
+
+  await supabase.from("quality_checks").insert([
+    {
+      uploaded_file_id: happyFileId,
+      blur_score: 0.18,
+      glare_detected: false,
+      low_contrast_detected: false,
+      cut_off_edges_detected: false,
+      rotated_detected: false,
+      screenshot_detected: false,
+      handwriting_detected: false,
+      text_extraction_confidence: 0.91,
+      issue_summary: "Looks usable. Awaiting staff review.",
+      recommendation: "review",
+      ocr_engine: "mock",
+      raw_ai_json: {
+        mock: true,
+        classification: { type: "Government ID", source: "rules", confidence: 0.86, reason: "Matched DRIVER LICENSE keywords." },
+      },
+      local_flags: { firedFlags: [], blurScore: 0.18, brightness: 0.62, contrast: 0.21 },
+      raw_ocr_json: { mock: true, lang: "eng", confidence: 0.91 },
+    },
+    {
+      uploaded_file_id: reuploadFileId,
+      blur_score: 0.78,
+      glare_detected: false,
+      low_contrast_detected: true,
+      cut_off_edges_detected: false,
+      rotated_detected: false,
+      screenshot_detected: false,
+      handwriting_detected: false,
+      text_extraction_confidence: 0.32,
+      issue_summary:
+        "This photo is too blurry to review. The image is too dark or has low contrast. Very little text could be read from this upload.",
+      recommendation: "request_reupload",
+      ocr_engine: "mock",
+      raw_ai_json: {
+        mock: true,
+        classification: { type: "Marriage Certificate", source: "fallback", confidence: 0.45, reason: "Inferred from checklist item." },
+      },
+      local_flags: {
+        firedFlags: ["blur_detected", "low_contrast_detected", "ocr_text_too_short"],
+        blurScore: 0.78,
+        brightness: 0.14,
+        contrast: 0.09,
+      },
+      raw_ocr_json: { mock: true, lang: "eng", confidence: 0.32 },
+    },
+  ]);
+
+  await supabase.from("review_tasks").insert([
+    {
+      organization_id: orgId,
+      matter_id: matterId,
+      uploaded_file_id: happyFileId,
+      status: "open",
+    },
+    {
+      organization_id: orgId,
+      matter_id: matterId,
+      uploaded_file_id: reuploadFileId,
+      status: "open",
+    },
+  ]);
 
   console.log("→ Recording demo audit logs…");
   await supabase.from("audit_logs").insert([

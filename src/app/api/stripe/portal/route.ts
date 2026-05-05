@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { requireSession } from "@/lib/auth";
+import { requireStepUpReauth } from "@/lib/auth";
 import { env, integrations } from "@/lib/env";
 import { getStripe } from "@/lib/stripe/client";
 
 export async function POST() {
-  const ctx = await requireSession();
+  const ctx = await requireStepUpReauth();
   if (!integrations.hasStripe) {
     return new NextResponse("Stripe is not configured", { status: 503 });
   }
