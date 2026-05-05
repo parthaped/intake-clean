@@ -43,12 +43,13 @@ jobs:
     name: Semgrep
     runs-on: ubuntu-latest
     container:
-      image: returntocorp/semgrep:latest
+      image: semgrep/semgrep:latest
     steps:
       - uses: actions/checkout@v4
-      - run: semgrep ci --config=p/owasp-top-ten --config=p/typescript --config=p/nextjs --config=p/javascript --error
-        env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+      # Use `semgrep scan` (not `semgrep ci`) because we don't have a
+      # Semgrep Cloud account / SEMGREP_APP_TOKEN configured. `--error`
+      # makes the job fail when any finding is reported.
+      - run: semgrep scan --config=p/owasp-top-ten --config=p/typescript --config=p/nextjs --config=p/javascript --error
 
   codeql:
     name: CodeQL
