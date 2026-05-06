@@ -184,9 +184,36 @@ export default async function SettingsPage() {
               </span>
             </label>
 
+            <label className="flex items-start gap-3 rounded-xl border border-border bg-card/40 p-3 md:col-span-2">
+              <input
+                type="checkbox"
+                name="use_hf_vision"
+                defaultChecked={aiSettings.use_hf_vision}
+                disabled={!isAdmin || !env.useHfVision}
+                className="mt-0.5"
+              />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium">
+                  Use multimodal vision to auto-screen photo uploads
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  When clients upload a <em>photo</em> (not PDF), send the 600&nbsp;px JPEG <em>thumbnail</em> to{" "}
+                  <code className="font-mono text-[11px]">{env.hfVisionModel}</code> with a strict prompt that
+                  forbids transcribing names, numbers, dates of birth, or signatures. The model returns only a
+                  document type, a quality verdict, and a short plain-English reason — staff still review every
+                  document. {!env.useHfVision && (
+                    <span className="text-warning">
+                      Disabled at the platform level until <code>USE_HF_VISION=true</code> is set in your environment.
+                    </span>
+                  )}
+                </span>
+              </span>
+            </label>
+
             <div className="md:col-span-2 rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs text-warning">
               For sensitive documents, use local OCR or a private endpoint. Do not send client files to third-party
-              inference services unless your firm has approved it.
+              inference services unless your firm has approved it. Vision review (if enabled) sends a downscaled
+              thumbnail only — never the original upload, signed URL, or filename.
             </div>
 
             <div className="md:col-span-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -262,6 +289,7 @@ interface AISettingsShape {
   ocr_engine: OcrEngineName;
   use_hf_classification: boolean;
   use_hf_explanations: boolean;
+  use_hf_vision: boolean;
 }
 
 function readAISettings(value: Json | null): AISettingsShape {
@@ -269,6 +297,10 @@ function readAISettings(value: Json | null): AISettingsShape {
     ocr_engine: env.ocrEngine,
     use_hf_classification: env.useHfClassification,
     use_hf_explanations: env.useHfExplanations,
+    // Vision is opt-in: even if `USE_HF_VISION` is on at the platform level
+    // we don't pre-flip firms into sending images off-device. They must
+    // explicitly check the box in Settings → Document AI.
+    use_hf_vision: false,
   };
   if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
   const v = value as Record<string, unknown>;
@@ -276,6 +308,8 @@ function readAISettings(value: Json | null): AISettingsShape {
     ocr_engine: typeof v.ocr_engine === "string" ? (v.ocr_engine as OcrEngineName) : fallback.ocr_engine,
     use_hf_classification:
       typeof v.use_hf_classification === "boolean" ? v.use_hf_classification : fallback.use_hf_classification,
+    use_hf_vision:
+      typeof v.use_hf_vision === "boolean" ? v.use_hf_vision : fallback.use_hf_vision,
     use_hf_explanations:
       typeof v.use_hf_explanations === "boolean" ? v.use_hf_explanations : fallback.use_hf_explanations,
   };

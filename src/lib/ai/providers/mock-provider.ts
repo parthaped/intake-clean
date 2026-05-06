@@ -8,6 +8,7 @@ import type {
   OCRResult,
   QualityCheckResult,
   ReuploadReasonResult,
+  VisionReviewResult,
 } from "@/lib/ai/types";
 import type { ImageMetricsResult } from "@/lib/ai/preprocess/image-prep";
 import type { DocumentType } from "@/lib/constants";
@@ -178,5 +179,25 @@ export const mockAIProvider: AIProvider = {
   },
   async rewriteReuploadReason({ template }): Promise<ReuploadReasonResult> {
     return { text: template, source: "template", template };
+  },
+  async classifyDocumentVision({ matterType, itemTitle }): Promise<VisionReviewResult> {
+    // Mock vision returns a deterministic-but-believable verdict so demos work
+    // offline. We don't look at the image bytes (it's a mock!) — we mirror
+    // the matter type heuristic used by the text classifier so screenshots in
+    // the dashboard don't show contradictory signals between OCR and vision.
+    const type = pickMockClassification(matterType);
+    const reason = itemTitle
+      ? `Mock vision review: looks consistent with the requested "${itemTitle}".`
+      : `Mock vision review: looks like a ${type.toLowerCase()}.`;
+    return {
+      type,
+      confidence: 0.72,
+      recommendation: "review",
+      reason,
+      blurry: false,
+      cutOff: false,
+      screenshot: false,
+      model: "mock-vision",
+    };
   },
 };

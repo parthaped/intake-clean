@@ -103,6 +103,7 @@ const aiSettingsSchema = z.object({
   ocr_engine: z.enum(["tesseract", "paddleocr", "mock", "none"]),
   use_hf_classification: z.boolean(),
   use_hf_explanations: z.boolean(),
+  use_hf_vision: z.boolean(),
 });
 
 export async function updateAISettingsAction(formData: FormData) {
@@ -112,6 +113,7 @@ export async function updateAISettingsAction(formData: FormData) {
     ocr_engine: formData.get("ocr_engine") as OcrEngineName,
     use_hf_classification: formData.get("use_hf_classification") === "on",
     use_hf_explanations: formData.get("use_hf_explanations") === "on",
+    use_hf_vision: formData.get("use_hf_vision") === "on",
   });
   if (!parsed.success) throw new Error(parsed.error.errors[0]?.message ?? "Invalid input");
 
@@ -124,6 +126,7 @@ export async function updateAISettingsAction(formData: FormData) {
         ocr_engine: parsed.data.ocr_engine,
         use_hf_classification: parsed.data.use_hf_classification,
         use_hf_explanations: parsed.data.use_hf_explanations,
+        use_hf_vision: parsed.data.use_hf_vision,
       },
     })
     .eq("id", ctx.organization.id);
@@ -140,6 +143,7 @@ export async function updateAISettingsAction(formData: FormData) {
       ocr_engine: parsed.data.ocr_engine,
       use_hf_classification: parsed.data.use_hf_classification,
       use_hf_explanations: parsed.data.use_hf_explanations,
+      use_hf_vision: parsed.data.use_hf_vision,
     },
   });
   revalidatePath("/dashboard/settings");

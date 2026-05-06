@@ -136,6 +136,13 @@ export const env = {
   useLocalOcr: readBool("USE_LOCAL_OCR", true),
   useHfClassification: readBool("USE_HF_CLASSIFICATION", false),
   useHfExplanations: readBool("USE_HF_EXPLANATIONS", false),
+  // Multimodal vision review of uploaded photos. Off by default — sending
+  // images (even thumbnails) to a third-party inference provider is the most
+  // sensitive AI option we offer, so it requires both this env flag AND the
+  // per-firm `use_hf_vision` toggle in `ai_settings` before any image leaves
+  // the platform. Even when on, the prompt forbids transcribing PII and we
+  // re-redact the model's text reply server-side.
+  useHfVision: readBool("USE_HF_VISION", false),
   mockAi: readBool("MOCK_AI", true),
 
   tesseractLang: read("TESSERACT_LANG") ?? "eng",

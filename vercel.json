@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/process/run",
-      "schedule": "* * * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/cron/audit-retention",

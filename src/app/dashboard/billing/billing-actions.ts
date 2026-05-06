@@ -26,29 +26,34 @@ export async function startCheckoutAction(
 
   const stripe = getStripe();
   const service = getServiceSupabase();
-  let customerId = ctx.organization.stripe_customer_id;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      name: ctx.organization.name,
-      metadata: { organization_id: ctx.organization.id },
-    });
-    customerId = customer.id;
-    await service
-      .from("organizations")
-      .update({ stripe_customer_id: customerId })
-      .eq("id", ctx.organization.id);
-  }
+  try {
+    let customerId = ctx.organization.stripe_customer_id;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        name: ctx.organization.name,
+        metadata: { organization_id: ctx.organization.id },
+      });
+      customerId = customer.id;
+      await service
+        .from("organizations")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", ctx.organization.id);
+    }
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    customer: customerId,
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${env.appUrl}/dashboard/billing?session=success`,
-    cancel_url: `${env.appUrl}/dashboard/billing?session=cancelled`,
-    metadata: { organization_id: ctx.organization.id, tier },
-    subscription_data: { metadata: { organization_id: ctx.organization.id, tier } },
-  });
-  return { url: session.url ?? undefined };
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer: customerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${env.appUrl}/dashboard/billing?session=success`,
+      cancel_url: `${env.appUrl}/dashboard/billing?session=cancelled`,
+      metadata: { organization_id: ctx.organization.id, tier },
+      subscription_data: { metadata: { organization_id: ctx.organization.id, tier } },
+    });
+    return { url: session.url ?? undefined };
+  } catch (err) {
+    console.error("[billing] stripe checkout failed", err);
+    return { error: friendlyStripeError(err, "We couldn't start a Stripe checkout session.") };
+  }
 }
 
 export async function openPortalAction(): Promise<{ url?: string; error?: string }> {
@@ -58,11 +63,38 @@ export async function openPortalAction(): Promise<{ url?: string; error?: string
     return { error: "No Stripe customer for this org yet. Start checkout first." };
   }
   const stripe = getStripe();
-  const session = await stripe.billingPortal.sessions.create({
-    customer: ctx.organization.stripe_customer_id,
-    return_url: `${env.appUrl}/dashboard/billing`,
-  });
-  return { url: session.url };
+  try {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: ctx.organization.stripe_customer_id,
+      return_url: `${env.appUrl}/dashboard/billing`,
+    });
+    return { url: session.url };
+  } catch (err) {
+    console.error("[billing] stripe portal failed", err);
+    return { error: friendlyStripeError(err, "We couldn't open the Stripe billing portal.") };
+  }
+}
+
+/**
+ * Turn a Stripe SDK error into something safe to show in a toast. We
+ * deliberately strip resource IDs and request IDs that aren't useful to a
+ * firm admin, and surface a clear hint when the most common misconfig
+ * (test vs. live keys not matching the configured price IDs) happens.
+ */
+function friendlyStripeError(err: unknown, fallback: string): string {
+  if (typeof err === "object" && err !== null && "type" in err) {
+    const stripeErr = err as { type?: string; code?: string; message?: string };
+    if (
+      stripeErr.code === "resource_missing" &&
+      typeof stripeErr.message === "string" &&
+      stripeErr.message.includes("test mode")
+    ) {
+      return "Stripe is configured with a live-mode key but the price IDs point at test mode (or vice versa). Ask an admin to align STRIPE_SECRET_KEY and STRIPE_PRICE_* in Vercel.";
+    }
+    if (stripeErr.message) return stripeErr.message;
+  }
+  if (err instanceof Error) return err.message;
+  return fallback;
 }
 
 export interface CancelSubscriptionInput {
