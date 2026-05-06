@@ -82,6 +82,10 @@ export default async function LegalDocumentPage({ params }: PageProps) {
       <section className="container py-12">
         <article
           className="legal-prose mx-auto max-w-3xl"
+          // The `html` value is rendered server-side from first-party
+          // markdown and is sanitised via DOMPurify in `loadDocumentHtml`
+          // above (script/style/iframe/event-handler attrs are stripped).
+          // nosemgrep: typescript.react.security.audit.react-dangerouslysetinnerhtml.react-dangerouslysetinnerhtml
           dangerouslySetInnerHTML={{ __html: html }}
         />
       </section>

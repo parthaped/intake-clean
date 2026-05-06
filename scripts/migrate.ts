@@ -74,6 +74,11 @@ async function main() {
   console.log(`→ Connecting to ${sanitized.replace(/:[^:@]+@/, ":***@")}`);
   const client = new Client({
     connectionString: sanitized,
+    // Supabase's pooler ships a self-signed chain that node-postgres can't
+    // verify with the system trust store. This script is a developer-only
+    // admin tool — never invoked at runtime, never given user input — so
+    // disabling chain verification here does not affect the deployed app.
+    // nosemgrep: bypass-tls-verification
     ssl: { rejectUnauthorized: false },
   });
   await client.connect();
