@@ -1,4 +1,4 @@
-import { Building2, ShieldCheck, Sparkles, Users } from "lucide-react";
+import { ShieldCheck, Sparkles, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,10 +13,10 @@ import type { AIProviderName, Json, OcrEngineName } from "@/types/database";
 
 import {
   updateAISettingsAction,
-  updateOrganizationAction,
   updateProfileAction,
   updateUserRoleAction,
 } from "@/app/dashboard/settings/actions";
+import { FirmProfileCard } from "@/app/dashboard/settings/firm-profile-card";
 
 interface ProfileRow {
   id: string;
@@ -46,41 +46,11 @@ export default async function SettingsPage() {
         <p className="text-muted-foreground">Firm profile, team, AI processing, and notification preferences.</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="h-4 w-4 text-primary" /> Firm profile
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form action={updateOrganizationAction} className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Firm name</Label>
-              <Input id="name" name="name" defaultValue={ctx.organization.name} required disabled={!isAdmin} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="logo_url">Logo URL (optional)</Label>
-              <Input
-                id="logo_url"
-                name="logo_url"
-                defaultValue={ctx.organization.logo_url ?? ""}
-                placeholder="https://…"
-                disabled={!isAdmin}
-              />
-            </div>
-            <div className="md:col-span-2">
-              <Button type="submit" disabled={!isAdmin}>
-                Save firm details
-              </Button>
-              {!isAdmin && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Only firm admins can change firm-level settings.
-                </p>
-              )}
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+      <FirmProfileCard
+        firmName={ctx.organization.name}
+        logoUrl={ctx.organization.logo_url}
+        isAdmin={isAdmin}
+      />
 
       <Card>
         <CardHeader>
