@@ -53,10 +53,17 @@ const RULES: Rule[] = [
   { label: "ein", pattern: /\b\d{2}-\d{7}\b/g },
   // Dates of birth. Restrict month (01-12) and day (01-31) so junk like
   // "99/99/9999" doesn't get redacted as a DOB. Year still accepts both
-  // 2- and 4-digit forms.
+  // 2- and 4-digit forms. We run the US (MM-DD-YYYY) shape first because
+  // it's the dominant intake format; the EU (DD-MM-YYYY) rule catches
+  // remaining unambiguous EU-shaped values like `14-03-1990` where the
+  // first group exceeds 12 and so cannot be a month.
   {
     label: "dob",
     pattern: /\b(0?[1-9]|1[0-2])[/-](0?[1-9]|[12]\d|3[01])[/-](?:\d{2}|\d{4})\b/g,
+  },
+  {
+    label: "dob",
+    pattern: /\b(0?[1-9]|[12]\d|3[01])[/-](0?[1-9]|1[0-2])[/-](?:\d{2}|\d{4})\b/g,
   },
   // SSN — three formats. Most specific first.
   { label: "ssn", pattern: /\b\d{3}-\d{2}-\d{4}\b/g },
