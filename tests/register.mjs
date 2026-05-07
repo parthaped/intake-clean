@@ -14,6 +14,11 @@ const defaults = {
   AI_PROVIDER: "mock",
   OCR_ENGINE: "tesseract",
   MOCK_AI: "true",
+  // The upload route's `triggerDrain` only attaches an authorization
+  // header when `env.cronSecret` is set. We seed a deterministic value
+  // so the route-level tests can assert the wiring is in place — the
+  // real production secret is provisioned per-environment.
+  CRON_SECRET: "test-cron-secret",
 };
 for (const [k, v] of Object.entries(defaults)) {
   if (process.env[k] === undefined || process.env[k] === "") {
