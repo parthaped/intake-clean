@@ -13,6 +13,24 @@
  * never be exposed publicly.
  */
 
+/**
+ * Centralised brand / contact substitutions applied to every public legal
+ * markdown source before render. Editing these in one place keeps the
+ * markdown reusable as templates while production pages and PDFs always
+ * show the live entity name and mailbox addresses.
+ *
+ * If you incorporate the LLC under a different name, update `llcName`
+ * here and rebuild the PDFs (`npm run build:legal`).
+ */
+export const LEGAL_BRAND = {
+  llcName: "IntakeClean LLC",
+  privacyEmail: "privacy@intakeclean.com",
+  securityEmail: "security@intakeclean.com",
+  legalEmail: "legal@intakeclean.com",
+  supportEmail: "support@intakeclean.com",
+  abuseEmail: "abuse@intakeclean.com",
+} as const;
+
 export interface LegalDocument {
   /** URL slug under `/legal/` and the PDF filename stem in `public/legal/`. */
   slug: string;
@@ -28,6 +46,13 @@ export interface LegalDocument {
    * Privacy, then everything else").
    */
   order: number;
+  /**
+   * ISO `YYYY-MM-DD` date of the last material edit to this document.
+   * Substituted into the `[YYYY-MM-DD]` token in the markdown source so
+   * the rendered HTML and PDF carry an accurate "Last updated" line
+   * without us having to remember to edit each file.
+   */
+  lastUpdated: string;
 }
 
 export const LEGAL_DOCUMENTS: readonly LegalDocument[] = [
@@ -38,6 +63,7 @@ export const LEGAL_DOCUMENTS: readonly LegalDocument[] = [
       "The master B2B SaaS contract between IntakeClean and the firm using the product. Includes acceptable use, AI assistive language, fees, governing law, and arbitration.",
     markdownPath: "legal/policies/01-terms-of-service.md",
     order: 1,
+    lastUpdated: "2026-05-06",
   },
   {
     slug: "privacy-policy",
@@ -46,6 +72,7 @@ export const LEGAL_DOCUMENTS: readonly LegalDocument[] = [
       "How we collect, use, share, and protect information. Covers both firm representatives (controller scope) and uploaded end-client documents (processor scope).",
     markdownPath: "legal/policies/02-privacy-policy.md",
     order: 2,
+    lastUpdated: "2026-05-06",
   },
   {
     slug: "data-processing-addendum",
@@ -54,6 +81,7 @@ export const LEGAL_DOCUMENTS: readonly LegalDocument[] = [
       "GDPR / CCPA processing terms when IntakeClean handles personal data on a firm's behalf. Standard Contractual Clauses incorporated for international transfers.",
     markdownPath: "legal/policies/03-data-processing-addendum.md",
     order: 3,
+    lastUpdated: "2026-05-06",
   },
   {
     slug: "acceptable-use-policy",
@@ -62,6 +90,7 @@ export const LEGAL_DOCUMENTS: readonly LegalDocument[] = [
       "Prohibited content and behavior on IntakeClean. Incorporated by reference into the Terms of Service.",
     markdownPath: "legal/policies/04-acceptable-use-policy.md",
     order: 4,
+    lastUpdated: "2026-05-06",
   },
   {
     slug: "subprocessor-list",
@@ -70,6 +99,7 @@ export const LEGAL_DOCUMENTS: readonly LegalDocument[] = [
       "The current set of third-party providers we engage to deliver the service, with the categories of data each receives. Updated when subprocessors change.",
     markdownPath: "legal/policies/07-subprocessor-list.md",
     order: 5,
+    lastUpdated: "2026-05-06",
   },
   {
     slug: "ai-disclaimer",
@@ -78,6 +108,7 @@ export const LEGAL_DOCUMENTS: readonly LegalDocument[] = [
       "What our AI does, what it cannot do, and the firm's responsibility to review every automated output before relying on it.",
     markdownPath: "legal/policies/06-ai-disclaimer.md",
     order: 6,
+    lastUpdated: "2026-05-06",
   },
   {
     slug: "cookie-notice",
@@ -86,8 +117,38 @@ export const LEGAL_DOCUMENTS: readonly LegalDocument[] = [
       "Cookies and similar technologies used on the IntakeClean website and product, by category and purpose.",
     markdownPath: "legal/policies/05-cookie-notice.md",
     order: 7,
+    lastUpdated: "2026-05-06",
   },
 ] as const;
+
+/**
+ * Apply the centralised brand/contact substitutions to a markdown source
+ * before rendering. Replaces the placeholder tokens defined in
+ * `legal/README.md` with the live values from `LEGAL_BRAND` plus the
+ * per-document `lastUpdated` date.
+ *
+ * Pure (no I/O) so it's cheap to call from both the page renderer and
+ * the PDF builder, and trivial to test.
+ */
+export function applyLegalSubstitutions(
+  markdown: string,
+  doc: Pick<LegalDocument, "lastUpdated">,
+): string {
+  return (
+    markdown
+      .replaceAll("[YYYY-MM-DD]", doc.lastUpdated)
+      .replaceAll("[LLC NAME]", LEGAL_BRAND.llcName)
+      // Order matters: the more-specific email tokens must be replaced
+      // before the bare `[CONTACT EMAIL]` token, otherwise the bare
+      // replacement would match inside `[privacy@CONTACT EMAIL]` and
+      // leave a malformed `[privacy@legal@…]` string behind.
+      .replaceAll("[privacy@CONTACT EMAIL]", LEGAL_BRAND.privacyEmail)
+      .replaceAll("[security@CONTACT EMAIL]", LEGAL_BRAND.securityEmail)
+      .replaceAll("[support@CONTACT EMAIL]", LEGAL_BRAND.supportEmail)
+      .replaceAll("[abuse@CONTACT EMAIL]", LEGAL_BRAND.abuseEmail)
+      .replaceAll("[CONTACT EMAIL]", LEGAL_BRAND.legalEmail)
+  );
+}
 
 export function findLegalDocument(slug: string): LegalDocument | undefined {
   return LEGAL_DOCUMENTS.find((doc) => doc.slug === slug);

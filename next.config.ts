@@ -80,6 +80,16 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "50mb",
     },
   },
+  // The `[slug]` legal page reads markdown from `legal/policies/*.md` at
+  // request time. Because `MarketingShell` calls `cookies()`/`headers()`
+  // the page is rendered dynamically, so the file must exist on disk in
+  // the deployed function. Next's NFT can't statically trace
+  // `readFile(join(process.cwd(), markdownPath))`, so we explicitly tell
+  // it to bundle the legal markdown with the function. Without this the
+  // page 500s in production with a hidden `ENOENT`.
+  outputFileTracingIncludes: {
+    "/legal/[slug]": ["./legal/policies/**/*.md"],
+  },
   async headers() {
     return [
       {

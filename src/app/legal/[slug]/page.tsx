@@ -10,7 +10,12 @@ import { marked } from "marked";
 
 import { MarketingShell } from "@/components/marketing-shell";
 import { Button } from "@/components/ui/button";
-import { LEGAL_DOCUMENTS, findLegalDocument } from "@/lib/legal-documents";
+import {
+  LEGAL_DOCUMENTS,
+  applyLegalSubstitutions,
+  findLegalDocument,
+  type LegalDocument,
+} from "@/lib/legal-documents";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -31,21 +36,49 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-async function loadDocumentHtml(markdownPath: string): Promise<string> {
-  const absolutePath = join(process.cwd(), markdownPath);
-  const source = await readFile(absolutePath, "utf8");
+/**
+ * Module-scope cache keyed by slug. The markdown is shipped with the
+ * function bundle (see `outputFileTracingIncludes` in `next.config.ts`)
+ * and never changes between deploys, so we read each file at most once
+ * per cold start and reuse the rendered, sanitised HTML on every hit.
+ */
+const htmlCache = new Map<string, string>();
+
+async function loadDocumentHtml(doc: LegalDocument): Promise<string> {
+  const cached = htmlCache.get(doc.slug);
+  if (cached) return cached;
+
+  const absolutePath = join(process.cwd(), doc.markdownPath);
+  let source: string;
+  try {
+    source = await readFile(absolutePath, "utf8");
+  } catch (err) {
+    // Surface a precise error in the function logs so a future
+    // regression (e.g. someone removes the file-tracing include) is
+    // immediately diagnosable instead of showing as a blank 500.
+    const cause = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Failed to read legal document markdown for "${doc.slug}" at ${absolutePath}: ${cause}`,
+      { cause: err },
+    );
+  }
+
+  const filled = applyLegalSubstitutions(source, doc);
   marked.setOptions({ gfm: true, breaks: false });
-  const rawHtml = marked.parse(source, { async: false }) as string;
+  const rawHtml = marked.parse(filled, { async: false }) as string;
   // The markdown source is first-party today, but `dangerouslySetInnerHTML`
   // is exactly the kind of code path that turns into an XSS sink the moment
   // anyone pipes user content through it. Sanitise unconditionally so a
   // future edit (e.g. allowing per-firm legal addenda from the dashboard)
   // can't accidentally bypass this.
-  return DOMPurify.sanitize(rawHtml, {
+  const safe = DOMPurify.sanitize(rawHtml, {
     USE_PROFILES: { html: true },
     FORBID_TAGS: ["style", "script", "iframe", "object", "embed", "form"],
     FORBID_ATTR: ["style", "onerror", "onload", "onclick"],
   });
+
+  htmlCache.set(doc.slug, safe);
+  return safe;
 }
 
 export default async function LegalDocumentPage({ params }: PageProps) {
@@ -53,7 +86,7 @@ export default async function LegalDocumentPage({ params }: PageProps) {
   const doc = findLegalDocument(slug);
   if (!doc) notFound();
 
-  const html = await loadDocumentHtml(doc.markdownPath);
+  const html = await loadDocumentHtml(doc);
 
   return (
     <MarketingShell>

@@ -18,7 +18,11 @@ import { join } from "node:path";
 import { marked } from "marked";
 import puppeteer from "puppeteer";
 
-import { LEGAL_DOCUMENTS, type LegalDocument } from "../src/lib/legal-documents";
+import {
+  LEGAL_DOCUMENTS,
+  applyLegalSubstitutions,
+  type LegalDocument,
+} from "../src/lib/legal-documents";
 
 const ROOT = process.cwd();
 const OUT_DIR = join(ROOT, "public", "legal");
@@ -242,7 +246,8 @@ const footerTemplate = `
 
 async function generatePdf(doc: LegalDocument, browser: import("puppeteer").Browser): Promise<void> {
   const markdownPath = join(ROOT, doc.markdownPath);
-  const markdown = await readFile(markdownPath, "utf8");
+  const rawMarkdown = await readFile(markdownPath, "utf8");
+  const markdown = applyLegalSubstitutions(rawMarkdown, doc);
 
   const renderer = new marked.Renderer();
   marked.setOptions({ gfm: true, breaks: false });
