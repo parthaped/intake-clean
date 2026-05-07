@@ -15,7 +15,7 @@ describe("lib/messaging/sms > sendSms", () => {
     infoSpy = spyOn(console, "info");
   });
 
-  it("returns a 'sent_mock' result when Twilio env vars are not configured", async () => {
+  it("returns a 'sent_mock' result with a diagnostic mock-reason when Twilio env vars are not configured", async () => {
     const result = await sendSms({
       to: "+15551234567",
       body: "Please upload your documents.",
@@ -24,7 +24,9 @@ describe("lib/messaging/sms > sendSms", () => {
     expect(result.ok).toBeTrue();
     expect(result.status).toBe("sent_mock");
     expect(result.providerMessageId).toBeNull();
-    expect(result.error).toBeUndefined();
+    // Match `sendEmail`: the mock branch tags the result with the reason
+    // so it can be persisted to `client_messages.error_message`.
+    expect(result.error).toContain("TWILIO");
   });
 
   it("logs a mock-mode breadcrumb with the recipient and a 160-char preview", async () => {

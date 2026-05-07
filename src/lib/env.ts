@@ -183,3 +183,39 @@ export function requireSupabaseEnv(): { url: string; anonKey: string } {
   }
   return { url: env.supabaseUrl, anonKey: env.supabaseAnonKey };
 }
+
+// =============================================================================
+// Production misconfiguration warnings.
+//
+// Logged once at module load (i.e. once per cold start of each function
+// instance). We intentionally log a `console.warn` rather than throwing —
+// the app is designed to boot in mock mode for local development, and
+// throwing here would take down `/dashboard` rendering for an admin who
+// otherwise needs to fix the misconfiguration. Surfacing the warning in
+// Vercel function logs is enough to make the issue visible while leaving
+// the rest of the platform usable.
+//
+// Only runs server-side (the `process.env.VERCEL_ENV` literal is undefined
+// in browser bundles, so `vercelEnv === "production"` is never true there).
+// =============================================================================
+const vercelEnv = process.env.VERCEL_ENV;
+if (vercelEnv === "production") {
+  if (env.appUrl === "http://localhost:3000") {
+    console.warn(
+      "[startup] NEXT_PUBLIC_APP_URL is missing in this production environment. Outbound email/SMS upload links will point at http://localhost:3000 and clients will be unable to upload. Set the secret via `vercel env add NEXT_PUBLIC_APP_URL production` (e.g. https://intakeclean.com) and redeploy.",
+    );
+  }
+  if (!integrations.hasResend) {
+    console.warn(
+      "[startup] RESEND_API_KEY is missing in this production environment. Outbound email will be silently mocked (status='sent_mock') and never reach clients. Set the secret via `vercel env add RESEND_API_KEY production` and redeploy.",
+    );
+  }
+  if (
+    integrations.hasResend &&
+    env.resendFromEmail.includes("onboarding@resend.dev")
+  ) {
+    console.warn(
+      "[startup] RESEND_FROM_EMAIL is using the Resend sandbox address (onboarding@resend.dev). Resend will reject sends to any address other than the Resend account owner. Verify a custom domain (see docs/security/email-domain-auth.md) and set RESEND_FROM_EMAIL accordingly.",
+    );
+  }
+}

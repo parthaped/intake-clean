@@ -23,7 +23,7 @@ describe("lib/messaging/email > sendEmail", () => {
     infoSpy = spyOn(console, "info");
   });
 
-  it("returns a 'sent_mock' result when RESEND_API_KEY is not configured", async () => {
+  it("returns a 'sent_mock' result with a diagnostic mock-reason when RESEND_API_KEY is not configured", async () => {
     const result = await sendEmail({
       to: "client@example.test",
       subject: "Documents needed",
@@ -33,7 +33,11 @@ describe("lib/messaging/email > sendEmail", () => {
     expect(result.ok).toBeTrue();
     expect(result.status).toBe("sent_mock");
     expect(result.providerMessageId).toBeNull();
-    expect(result.error).toBeUndefined();
+    // The mock branch tags the result with the reason so the orchestrators
+    // can persist it to `client_messages.error_message` and the dashboard
+    // Messages tab can render "Mock mode — RESEND_API_KEY not configured…"
+    // instead of leaving staff guessing why mail isn't arriving.
+    expect(result.error).toContain("RESEND_API_KEY");
   });
 
   it("logs a mock-mode breadcrumb so staff can see what would have been sent", async () => {
@@ -113,5 +117,41 @@ describe("lib/messaging/email > sendEmail", () => {
     expect(result.ok).toBeTrue();
     expect(result.status).toBe("sent_mock");
     expect(result.providerMessageId).toBeNull();
+  });
+
+  it("accepts an optional html body and still returns the mock result shape", async () => {
+    const result = await sendEmail({
+      to: "client@example.test",
+      subject: "Branded subject",
+      text: "Plain-text fallback",
+      html: "<table><tr><td>Pretend HTML</td></tr></table>",
+    });
+    expect(result.ok).toBeTrue();
+    expect(result.status).toBe("sent_mock");
+    expect(result.providerMessageId).toBeNull();
+  });
+
+  it("flags hasHtml=true in the mock breadcrumb when an html body is provided", async () => {
+    await sendEmail({
+      to: "client@example.test",
+      subject: "Branded subject",
+      text: "Plain-text fallback",
+      html: "<table>HTML body</table>",
+    });
+    const [, payload] = infoSpy.calls.mostRecent().args as [string, Record<string, unknown>];
+    expect(payload.hasHtml).toBeTrue();
+    // The breadcrumb preview must still come from the plain-text body —
+    // we never want raw HTML markup leaking into application logs.
+    expect(payload.preview).toBe("Plain-text fallback");
+  });
+
+  it("flags hasHtml=false in the mock breadcrumb when no html body is provided", async () => {
+    await sendEmail({
+      to: "client@example.test",
+      subject: "Plain only",
+      text: "Body",
+    });
+    const [, payload] = infoSpy.calls.mostRecent().args as [string, Record<string, unknown>];
+    expect(payload.hasHtml).toBeFalse();
   });
 });

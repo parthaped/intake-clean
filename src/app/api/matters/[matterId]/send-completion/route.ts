@@ -15,12 +15,19 @@ export async function POST(_request: Request, context: Context) {
   if (limited) return limited;
   const { matterId } = await context.params;
   try {
-    await sendCompletionMessage({
+    const result = await sendCompletionMessage({
       matterId,
       organizationId: ctx.organization.id,
       actorProfileId: ctx.profile.id,
     });
-    return NextResponse.json({ ok: true });
+    // Forward the per-channel status so SendCompletionButton can show a
+    // truthful toast (mock vs. failed vs. real send).
+    return NextResponse.json({
+      ok: true,
+      status: result.status,
+      emailError: result.emailError,
+      smsError: result.smsError,
+    });
   } catch (err) {
     return new NextResponse(err instanceof Error ? err.message : "Failed to send", { status: 500 });
   }

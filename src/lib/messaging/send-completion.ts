@@ -3,6 +3,7 @@ import "server-only";
 import { recordAudit } from "@/lib/audit";
 import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/messaging/email";
+import { combinedStatus, type SendDispatchResult } from "@/lib/messaging/send-request";
 import { sendSms } from "@/lib/messaging/sms";
 import { renderCompletion } from "@/lib/messaging/templates";
 import { getServiceSupabase } from "@/lib/supabase/service";
@@ -26,7 +27,7 @@ interface MatterRow {
   organizations: { name: string } | null;
 }
 
-export async function sendCompletionMessage(args: SendCompletionArgs) {
+export async function sendCompletionMessage(args: SendCompletionArgs): Promise<SendDispatchResult> {
   const service = getServiceSupabase();
 
   const { data } = await service
@@ -51,8 +52,11 @@ export async function sendCompletionMessage(args: SendCompletionArgs) {
   const wantsEmail = client.preferred_contact === "email" || client.preferred_contact === "both";
   const wantsSms = client.preferred_contact === "sms" || client.preferred_contact === "both";
 
+  let emailResult: Awaited<ReturnType<typeof sendEmail>> | undefined;
+  let smsResult: Awaited<ReturnType<typeof sendSms>> | undefined;
+
   if (wantsEmail && client.email) {
-    const result = await sendEmail({
+    emailResult = await sendEmail({
       to: client.email,
       subject: message.subject,
       text: message.emailBody,
@@ -65,13 +69,14 @@ export async function sendCompletionMessage(args: SendCompletionArgs) {
       direction: "outbound",
       subject: message.subject,
       body: message.emailBody,
-      status: result.status,
-      provider_message_id: result.providerMessageId ?? null,
+      status: emailResult.status,
+      provider_message_id: emailResult.providerMessageId ?? null,
+      error_message: emailResult.error ?? null,
     });
   }
 
   if (wantsSms && client.phone) {
-    const result = await sendSms({ to: client.phone, body: message.smsBody });
+    smsResult = await sendSms({ to: client.phone, body: message.smsBody });
     await service.from("client_messages").insert({
       organization_id: args.organizationId,
       matter_id: matter.id,
@@ -80,8 +85,9 @@ export async function sendCompletionMessage(args: SendCompletionArgs) {
       direction: "outbound",
       subject: null,
       body: message.smsBody,
-      status: result.status,
-      provider_message_id: result.providerMessageId ?? null,
+      status: smsResult.status,
+      provider_message_id: smsResult.providerMessageId ?? null,
+      error_message: smsResult.error ?? null,
     });
   }
 
@@ -92,4 +98,10 @@ export async function sendCompletionMessage(args: SendCompletionArgs) {
     entityType: "matter",
     entityId: matter.id,
   });
+
+  return {
+    status: combinedStatus(emailResult?.status, smsResult?.status),
+    emailError: emailResult?.error ?? null,
+    smsError: smsResult?.error ?? null,
+  };
 }

@@ -3,6 +3,7 @@ import "server-only";
 import { recordAudit } from "@/lib/audit";
 import { env } from "@/lib/env";
 import { sendEmail } from "@/lib/messaging/email";
+import { combinedStatus, type SendDispatchResult } from "@/lib/messaging/send-request";
 import { sendSms } from "@/lib/messaging/sms";
 import { renderReupload } from "@/lib/messaging/templates";
 import { getServiceSupabase } from "@/lib/supabase/service";
@@ -28,22 +29,22 @@ interface ReuploadRequestRow {
     phone: string | null;
     preferred_contact: "email" | "sms" | "both";
   } | null;
-  organizations: { name: string } | null;
+  organizations: { name: string; logo_url: string | null } | null;
 }
 
-export async function sendReuploadMessage(args: SendReuploadArgs) {
+export async function sendReuploadMessage(args: SendReuploadArgs): Promise<SendDispatchResult | null> {
   const service = getServiceSupabase();
 
   const { data: requestData } = await service
     .from("document_requests")
     .select(
-      "id, matter_id, client_id, title, token, matters(matter_name), clients(full_name, email, phone, preferred_contact), organizations(name)",
+      "id, matter_id, client_id, title, token, matters(matter_name), clients(full_name, email, phone, preferred_contact), organizations(name, logo_url)",
     )
     .eq("id", args.requestId)
     .eq("organization_id", args.organizationId)
     .maybeSingle();
   const request = requestData as ReuploadRequestRow | null;
-  if (!request || !request.clients) return;
+  if (!request || !request.clients) return null;
 
   const { data: item } = await service
     .from("document_request_items")
@@ -59,17 +60,22 @@ export async function sendReuploadMessage(args: SendReuploadArgs) {
     uploadLink,
     itemName: item?.title ?? "the document",
     reason: args.reason,
+    firmLogoUrl: request.organizations?.logo_url ?? null,
   });
 
   const client = request.clients;
   const wantsEmail = client.preferred_contact === "email" || client.preferred_contact === "both";
   const wantsSms = client.preferred_contact === "sms" || client.preferred_contact === "both";
 
+  let emailResult: Awaited<ReturnType<typeof sendEmail>> | undefined;
+  let smsResult: Awaited<ReturnType<typeof sendSms>> | undefined;
+
   if (wantsEmail && client.email) {
-    const result = await sendEmail({
+    emailResult = await sendEmail({
       to: client.email,
       subject: message.subject,
       text: message.emailBody,
+      html: message.emailHtml,
     });
     await service.from("client_messages").insert({
       organization_id: args.organizationId,
@@ -80,13 +86,14 @@ export async function sendReuploadMessage(args: SendReuploadArgs) {
       direction: "outbound",
       subject: message.subject,
       body: message.emailBody,
-      status: result.status,
-      provider_message_id: result.providerMessageId ?? null,
+      status: emailResult.status,
+      provider_message_id: emailResult.providerMessageId ?? null,
+      error_message: emailResult.error ?? null,
     });
   }
 
   if (wantsSms && client.phone) {
-    const result = await sendSms({ to: client.phone, body: message.smsBody });
+    smsResult = await sendSms({ to: client.phone, body: message.smsBody });
     await service.from("client_messages").insert({
       organization_id: args.organizationId,
       matter_id: request.matter_id,
@@ -96,8 +103,9 @@ export async function sendReuploadMessage(args: SendReuploadArgs) {
       direction: "outbound",
       subject: null,
       body: message.smsBody,
-      status: result.status,
-      provider_message_id: result.providerMessageId ?? null,
+      status: smsResult.status,
+      provider_message_id: smsResult.providerMessageId ?? null,
+      error_message: smsResult.error ?? null,
     });
   }
 
@@ -109,4 +117,10 @@ export async function sendReuploadMessage(args: SendReuploadArgs) {
     entityId: args.requestItemId,
     metadata: { reason: args.reason },
   });
+
+  return {
+    status: combinedStatus(emailResult?.status, smsResult?.status),
+    emailError: emailResult?.error ?? null,
+    smsError: smsResult?.error ?? null,
+  };
 }

@@ -21,7 +21,12 @@ export async function POST(_request: Request, context: Context) {
       actorProfileId: ctx.profile.id,
       kind: "reminder",
     });
-    return NextResponse.json({ ok: true, status: result.status });
+    return NextResponse.json({
+      ok: true,
+      status: result.status,
+      emailError: result.emailError,
+      smsError: result.smsError,
+    });
   } catch (err) {
     return new NextResponse(err instanceof Error ? err.message : "Failed to send", { status: 500 });
   }

@@ -15,6 +15,19 @@ interface SendRequestArgs {
   kind: "initial" | "reminder";
 }
 
+/**
+ * Shape returned from every "send via email + SMS" orchestrator. The route
+ * handlers pass this back to the UI verbatim so a `sent_mock` (no provider
+ * configured) or `failed` (provider rejected) outcome can be surfaced as a
+ * yellow / red toast instead of the misleading green "Request sent" we
+ * displayed before.
+ */
+export interface SendDispatchResult {
+  status: MessageStatus;
+  emailError: string | null;
+  smsError: string | null;
+}
+
 interface RequestRow {
   id: string;
   matter_id: string;
@@ -28,7 +41,7 @@ interface RequestRow {
     phone: string | null;
     preferred_contact: "email" | "sms" | "both";
   } | null;
-  organizations: { name: string } | null;
+  organizations: { name: string; logo_url: string | null } | null;
 }
 
 /**
@@ -87,13 +100,13 @@ export function planChannels(
   return { willSendEmail, willSendSms };
 }
 
-export async function sendRequestEmailAndSms(args: SendRequestArgs) {
+export async function sendRequestEmailAndSms(args: SendRequestArgs): Promise<SendDispatchResult> {
   const service = getServiceSupabase();
 
   const { data, error } = await service
     .from("document_requests")
     .select(
-      "id, matter_id, client_id, title, token, matters(matter_name), clients(full_name, email, phone, preferred_contact), organizations(name)",
+      "id, matter_id, client_id, title, token, matters(matter_name), clients(full_name, email, phone, preferred_contact), organizations(name, logo_url)",
     )
     .eq("id", args.requestId)
     .eq("organization_id", args.organizationId)
@@ -113,6 +126,7 @@ export async function sendRequestEmailAndSms(args: SendRequestArgs) {
     clientName: client.full_name,
     matterName: matter?.matter_name ?? request.title,
     uploadLink,
+    firmLogoUrl: organization?.logo_url ?? null,
   };
   const message = args.kind === "initial" ? renderInitial(ctx) : renderReminder(ctx);
 
@@ -126,6 +140,7 @@ export async function sendRequestEmailAndSms(args: SendRequestArgs) {
       to: client.email,
       subject: message.subject,
       text: message.emailBody,
+      html: message.emailHtml,
     });
     await service.from("client_messages").insert({
       organization_id: args.organizationId,
@@ -138,6 +153,7 @@ export async function sendRequestEmailAndSms(args: SendRequestArgs) {
       body: message.emailBody,
       status: emailResult.status,
       provider_message_id: emailResult.providerMessageId ?? null,
+      error_message: emailResult.error ?? null,
     });
   }
 
@@ -154,6 +170,7 @@ export async function sendRequestEmailAndSms(args: SendRequestArgs) {
       body: message.smsBody,
       status: smsResult.status,
       provider_message_id: smsResult.providerMessageId ?? null,
+      error_message: smsResult.error ?? null,
     });
   }
 
@@ -168,6 +185,7 @@ export async function sendRequestEmailAndSms(args: SendRequestArgs) {
       subject: message.subject,
       body: "Client has no email or phone on file. Add contact details, then resend.",
       status: "failed",
+      error_message: "no_contact_info",
     });
   }
 
@@ -204,5 +222,9 @@ export async function sendRequestEmailAndSms(args: SendRequestArgs) {
     metadata: { status: finalStatus },
   });
 
-  return { status: finalStatus };
+  return {
+    status: finalStatus,
+    emailError: emailResult?.error ?? null,
+    smsError: smsResult?.error ?? null,
+  };
 }

@@ -413,6 +413,7 @@ type ClientMessagesRow = {
   body: string;
   status: MessageStatus;
   provider_message_id: string | null;
+  error_message: string | null;
   created_at: string;
 }
 type ClientMessagesInsert = {
@@ -427,6 +428,7 @@ type ClientMessagesInsert = {
   subject?: string | null;
   status?: MessageStatus;
   provider_message_id?: string | null;
+  error_message?: string | null;
   created_at?: string;
 }
 

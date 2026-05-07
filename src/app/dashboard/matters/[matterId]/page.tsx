@@ -86,6 +86,7 @@ type MessageRow = {
   subject: string | null;
   body: string;
   status: import("@/types/database").MessageStatus;
+  error_message: string | null;
   created_at: string;
 };
 
@@ -148,7 +149,7 @@ export default async function MatterDetailPage({ params, searchParams }: PagePro
       .order("created_at", { ascending: false }),
     service
       .from("client_messages")
-      .select("id, channel, direction, subject, body, status, created_at")
+      .select("id, channel, direction, subject, body, status, error_message, created_at")
       .eq("matter_id", matter.id)
       .order("created_at", { ascending: false }),
     service
@@ -363,8 +364,22 @@ export default async function MatterDetailPage({ params, searchParams }: PagePro
                           </p>
                           {m.subject && <p className="text-sm font-medium">{m.subject}</p>}
                           <p className="whitespace-pre-wrap text-sm text-foreground/90">{m.body}</p>
+                          {m.status === "failed" && m.error_message && (
+                            <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                              Delivery failed: {m.error_message}
+                            </p>
+                          )}
+                          {m.status === "sent_mock" && (
+                            <p className="rounded-md border border-amber-300/40 bg-amber-50 p-2 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+                              Mock mode — this message was logged but not actually delivered.
+                              {m.error_message ? ` (${m.error_message})` : ""}
+                            </p>
+                          )}
                         </div>
-                        <Badge variant="outline" className="capitalize">
+                        <Badge
+                          variant={m.status === "failed" ? "destructive" : "outline"}
+                          className="capitalize"
+                        >
                           {m.status.replace("_", " ")}
                         </Badge>
                       </div>

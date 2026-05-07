@@ -1,5 +1,8 @@
 import "server-only";
 
+import { env } from "@/lib/env";
+import { renderEmailHtml } from "@/lib/messaging/email-html";
+
 export interface TemplateContext {
   firmName: string;
   clientName: string;
@@ -7,11 +10,24 @@ export interface TemplateContext {
   uploadLink: string;
   itemName?: string;
   reason?: string;
+  /**
+   * Optional firm logo URL. When set it's rendered at the top of the
+   * branded HTML body; when null/missing the firm name is shown as a
+   * text wordmark instead. Plain text bodies never include the logo.
+   */
+  firmLogoUrl?: string | null;
 }
 
 export interface RenderedMessage {
   subject: string;
   emailBody: string;
+  /**
+   * Inline-styled HTML rendition delivered alongside `emailBody` as
+   * multipart/alternative. `renderCompletion` returns an empty string here
+   * because the completion email currently has no upload-link CTA worth
+   * branding (kept plain text).
+   */
+  emailHtml: string;
   smsBody: string;
 }
 
@@ -81,25 +97,79 @@ Best,
 const COMPLETION_SMS = `{firmName}: thanks {clientName}, we received everything for {matterName}.`;
 
 export function renderInitial(ctx: TemplateContext): RenderedMessage {
+  const subject = fill(INITIAL_SUBJECT, ctx);
+  const emailBody = fill(INITIAL_EMAIL, ctx);
+  const emailHtml = renderEmailHtml({
+    firmName: ctx.firmName,
+    firmLogoUrl: ctx.firmLogoUrl ?? null,
+    heading: `${ctx.firmName} needs your documents`,
+    bodyParagraphs: [
+      `Hi ${ctx.clientName},`,
+      `${ctx.firmName} is preparing your matter (${ctx.matterName}) and needs a few documents from you.`,
+      `Tap the button below to upload them securely from your phone or computer. Each item has simple guidance ("hold the camera flat, capture all four corners, avoid glare"). You can take photos or upload existing PDFs/images.`,
+      `If you have any questions, just reply to this email.`,
+    ],
+    cta: { label: "Upload your documents", href: ctx.uploadLink },
+    signOff: `Thank you,\u00a0${ctx.firmName}`,
+    appUrl: env.appUrl,
+  });
   return {
-    subject: fill(INITIAL_SUBJECT, ctx),
-    emailBody: fill(INITIAL_EMAIL, ctx),
+    subject,
+    emailBody,
+    emailHtml,
     smsBody: fill(INITIAL_SMS, ctx),
   };
 }
 
 export function renderReminder(ctx: TemplateContext): RenderedMessage {
+  const subject = fill(REMINDER_SUBJECT, ctx);
+  const emailBody = fill(REMINDER_EMAIL, ctx);
+  const emailHtml = renderEmailHtml({
+    firmName: ctx.firmName,
+    firmLogoUrl: ctx.firmLogoUrl ?? null,
+    heading: `Friendly reminder: documents still needed`,
+    bodyParagraphs: [
+      `Hi ${ctx.clientName},`,
+      `Just a quick reminder that ${ctx.firmName} is still waiting on a few documents for ${ctx.matterName}. You can upload them whenever you have a couple of minutes — the same private link as before still works.`,
+    ],
+    cta: { label: "Upload your documents", href: ctx.uploadLink },
+    signOff: `Thanks again,\u00a0${ctx.firmName}`,
+    appUrl: env.appUrl,
+  });
   return {
-    subject: fill(REMINDER_SUBJECT, ctx),
-    emailBody: fill(REMINDER_EMAIL, ctx),
+    subject,
+    emailBody,
+    emailHtml,
     smsBody: fill(REMINDER_SMS, ctx),
   };
 }
 
 export function renderReupload(ctx: TemplateContext): RenderedMessage {
+  const subject = fill(REUPLOAD_SUBJECT, ctx);
+  const emailBody = fill(REUPLOAD_EMAIL, ctx);
+  const itemName = ctx.itemName ?? "the requested document";
+  const reason = ctx.reason ?? "the document needs to be retaken";
+  const emailHtml = renderEmailHtml({
+    firmName: ctx.firmName,
+    firmLogoUrl: ctx.firmLogoUrl ?? null,
+    heading: `One document needs to be retaken`,
+    bodyParagraphs: [
+      `Hi ${ctx.clientName},`,
+      `Thank you for sending in your documents. We need a clearer copy of one item before we can use it for ${ctx.matterName}.`,
+      `Tap the button to re-upload using the same private link as before. Tip: place the document on a flat surface, capture all four corners, and avoid glare or shadows.`,
+    ],
+    cta: { label: "Re-upload this document", href: ctx.uploadLink },
+    secondaryNote: {
+      title: "Item to retake",
+      lines: [`${itemName}`, `Reason: ${reason}`],
+    },
+    signOff: `Thanks,\u00a0${ctx.firmName}`,
+    appUrl: env.appUrl,
+  });
   return {
-    subject: fill(REUPLOAD_SUBJECT, ctx),
-    emailBody: fill(REUPLOAD_EMAIL, ctx),
+    subject,
+    emailBody,
+    emailHtml,
     smsBody: fill(REUPLOAD_SMS, ctx),
   };
 }
@@ -108,6 +178,9 @@ export function renderCompletion(ctx: TemplateContext): RenderedMessage {
   return {
     subject: fill(COMPLETION_SUBJECT, ctx),
     emailBody: fill(COMPLETION_EMAIL, ctx),
+    // Completion email is a plain acknowledgement (no upload link CTA), so
+    // we deliberately keep it text-only and skip the branded HTML layout.
+    emailHtml: "",
     smsBody: fill(COMPLETION_SMS, ctx),
   };
 }

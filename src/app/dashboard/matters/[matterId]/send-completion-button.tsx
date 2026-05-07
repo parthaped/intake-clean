@@ -10,6 +10,13 @@ interface Props {
   matterId: string;
 }
 
+interface SendApiResponse {
+  ok?: boolean;
+  status?: "sent" | "sent_mock" | "failed" | string;
+  emailError?: string | null;
+  smsError?: string | null;
+}
+
 export function SendCompletionButton({ matterId }: Props) {
   const [pending, startTransition] = useTransition();
 
@@ -21,7 +28,30 @@ export function SendCompletionButton({ matterId }: Props) {
         toast.error(text || "Could not send completion message");
         return;
       }
-      toast.success("Completion message sent");
+      // Match SendRequestButton's status-aware toasts so a misconfigured
+      // Resend key (mock fallback) or a provider rejection on the completion
+      // notification can't masquerade as a successful send.
+      const body = (await res.json().catch(() => ({}))) as SendApiResponse;
+      const channelError = body.emailError ?? body.smsError ?? null;
+      switch (body.status) {
+        case "sent":
+          toast.success("Completion message sent to client");
+          return;
+        case "sent_mock":
+          toast.warning(
+            "Completion message recorded in mock mode — set RESEND_API_KEY (and a verified RESEND_FROM_EMAIL) to actually deliver email.",
+          );
+          return;
+        case "failed":
+          toast.error(
+            channelError
+              ? `Completion message could not be delivered: ${channelError}`
+              : "Completion message could not be delivered. See the Messages tab for details.",
+          );
+          return;
+        default:
+          toast.success("Completion message sent");
+      }
     });
   }
 
