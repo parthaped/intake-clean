@@ -66,12 +66,13 @@ export default async function ClientUploadPage({ params, searchParams }: PagePro
 
   const items = request.document_request_items.slice().sort((a, b) => a.sort_order - b.sort_order);
   const firmName = request.organizations?.name ?? "Your firm";
+  const firmLogoUrl = request.organizations?.logo_url ?? null;
   const matterName = request.matters?.matter_name ?? request.title;
 
   if (expired) {
     return (
       <div className="min-h-screen bg-background">
-        <Header firmName={firmName} />
+        <Header firmName={firmName} firmLogoUrl={firmLogoUrl} />
         <main className="mx-auto max-w-2xl px-4 py-12">
           <Card>
             <CardContent className="space-y-3 p-8 text-center">
@@ -91,7 +92,7 @@ export default async function ClientUploadPage({ params, searchParams }: PagePro
   return (
     <div className="min-h-screen bg-background">
       <BotIdClient protect={BOTID_PROTECTED} />
-      <Header firmName={firmName} />
+      <Header firmName={firmName} firmLogoUrl={firmLogoUrl} />
       <main className="mx-auto max-w-2xl px-4 pb-16 pt-8">
         <div className="space-y-1.5">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">{firmName}</p>
@@ -150,12 +151,32 @@ export default async function ClientUploadPage({ params, searchParams }: PagePro
   );
 }
 
-function Header({ firmName }: { firmName: string }) {
+function Header({ firmName, firmLogoUrl }: { firmName: string; firmLogoUrl: string | null }) {
   return (
     <header className="border-b border-border bg-card/60">
-      <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-4">
-        <BrandMark withWordmark />
-        <span className="text-xs text-muted-foreground">{firmName}</span>
+      <div className="mx-auto flex max-w-2xl items-center justify-between gap-4 px-4 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          {firmLogoUrl ? (
+            // Firm-supplied URL — could be a Supabase public URL or any
+            // external host, so we use a plain <img> instead of next/image
+            // to skip next.js's strict remote-domain allowlist.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={firmLogoUrl}
+              alt={firmName}
+              className="h-9 w-auto max-w-[180px] rounded-md bg-white object-contain p-0.5"
+            />
+          ) : (
+            <span className="truncate text-base font-semibold tracking-tight text-foreground">{firmName}</span>
+          )}
+          {firmLogoUrl && (
+            <span className="hidden truncate text-xs text-muted-foreground sm:inline">{firmName}</span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
+          <span className="hidden sm:inline">In partnership with</span>
+          <BrandMark size="sm" withWordmark />
+        </div>
       </div>
     </header>
   );
@@ -164,7 +185,11 @@ function Header({ firmName }: { firmName: string }) {
 function Footer() {
   return (
     <footer className="border-t border-border bg-card/60 py-6 text-center text-xs text-muted-foreground">
-      <div className="mx-auto max-w-2xl space-y-1 px-4">
+      <div className="mx-auto max-w-2xl space-y-2 px-4">
+        <p className="flex items-center justify-center gap-1.5 text-foreground">
+          <span>Securely powered by</span>
+          <BrandMark size="sm" withWordmark />
+        </p>
         {DISCLAIMER_LINES.map((line) => (
           <p key={line}>{line}</p>
         ))}
