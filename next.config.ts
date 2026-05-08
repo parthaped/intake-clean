@@ -80,15 +80,19 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "50mb",
     },
   },
-  // The `[slug]` legal page reads markdown from `legal/policies/*.md` at
-  // request time. Because `MarketingShell` calls `cookies()`/`headers()`
-  // the page is rendered dynamically, so the file must exist on disk in
-  // the deployed function. Next's NFT can't statically trace
-  // `readFile(join(process.cwd(), markdownPath))`, so we explicitly tell
-  // it to bundle the legal markdown with the function. Without this the
-  // page 500s in production with a hidden `ENOENT`.
-  outputFileTracingIncludes: {
-    "/legal/[slug]": ["./legal/policies/**/*.md"],
+  // Inline `legal/policies/*.md` as raw strings so the dynamic `[slug]`
+  // page can render the policy text without `readFile(process.cwd() + …)`
+  // at request time. We previously tried `outputFileTracingIncludes` so
+  // Next's NFT would bundle the markdown alongside the function, but
+  // tracing didn't pick the route up reliably and the page 500'd with a
+  // hidden ENOENT. Webpack `asset/source` is deterministic — every
+  // `.md` import resolves to a string baked into the function bundle.
+  webpack: (config) => {
+    config.module.rules.push({
+      test: /\.md$/i,
+      type: "asset/source",
+    });
+    return config;
   },
   async headers() {
     return [

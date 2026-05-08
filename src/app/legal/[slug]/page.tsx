@@ -1,6 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -16,6 +13,7 @@ import {
   findLegalDocument,
   type LegalDocument,
 } from "@/lib/legal-documents";
+import { LEGAL_POLICY_MARKDOWN } from "@/lib/legal-policies";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -37,29 +35,25 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 /**
- * Module-scope cache keyed by slug. The markdown is shipped with the
- * function bundle (see `outputFileTracingIncludes` in `next.config.ts`)
- * and never changes between deploys, so we read each file at most once
- * per cold start and reuse the rendered, sanitised HTML on every hit.
+ * Module-scope cache keyed by slug. The markdown is statically imported
+ * via webpack's `asset/source` rule (see `next.config.ts`) so the raw
+ * text is part of the function bundle. Rendering+sanitising still
+ * happens lazily so a cold start that never serves /legal pays nothing.
  */
 const htmlCache = new Map<string, string>();
 
-async function loadDocumentHtml(doc: LegalDocument): Promise<string> {
+function loadDocumentHtml(doc: LegalDocument): string {
   const cached = htmlCache.get(doc.slug);
   if (cached) return cached;
 
-  const absolutePath = join(process.cwd(), doc.markdownPath);
-  let source: string;
-  try {
-    source = await readFile(absolutePath, "utf8");
-  } catch (err) {
-    // Surface a precise error in the function logs so a future
-    // regression (e.g. someone removes the file-tracing include) is
-    // immediately diagnosable instead of showing as a blank 500.
-    const cause = err instanceof Error ? err.message : String(err);
+  const source = LEGAL_POLICY_MARKDOWN[doc.slug];
+  if (!source) {
+    // Belt-and-braces: every entry in `LEGAL_DOCUMENTS` should have a
+    // matching key in `LEGAL_POLICY_MARKDOWN`. If a future contributor
+    // adds a doc to one but not the other, surface that here instead
+    // of letting `marked.parse(undefined)` blow up with a generic 500.
     throw new Error(
-      `Failed to read legal document markdown for "${doc.slug}" at ${absolutePath}: ${cause}`,
-      { cause: err },
+      `Missing inlined markdown for legal document "${doc.slug}". Add an import to src/lib/legal-policies.ts.`,
     );
   }
 
@@ -86,7 +80,7 @@ export default async function LegalDocumentPage({ params }: PageProps) {
   const doc = findLegalDocument(slug);
   if (!doc) notFound();
 
-  const html = await loadDocumentHtml(doc);
+  const html = loadDocumentHtml(doc);
 
   return (
     <MarketingShell>
